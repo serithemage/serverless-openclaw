@@ -29,3 +29,7 @@ Thumbs.db
 
 # References (cloned repos for study)
 references/
+
+# Cloudflare
+.wrangler/
+.dev.vars

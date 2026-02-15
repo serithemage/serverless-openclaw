@@ -33,3 +33,7 @@ export const OTP_LENGTH = 6;
 // Watchdog
 export const WATCHDOG_INTERVAL_MINUTES = 5;
 export const MIN_UPTIME_MINUTES = 5;
+
+// Cloudflare Containers
+export const CF_CONTAINER_SLEEP_AFTER = "15m";
+export const CF_CONTAINER_DEFAULT_PORT = 8080;

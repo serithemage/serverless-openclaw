@@ -10,7 +10,12 @@
     "format": "prettier --write \"packages/*/src/**/*.ts\"",
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "npm run build && wrangler deploy",
+    "cf:db:migrate": "wrangler d1 migrations apply serverless-openclaw-db",
+    "cf:db:migrate:local": "wrangler d1 migrations apply serverless-openclaw-db --local",
+    "cf:secret": "wrangler secret put"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

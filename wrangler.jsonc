@@ -1,0 +1,78 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "serverless-openclaw",
+  "main": "packages/worker/src/index.ts",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Cloudflare Container binding
+  "containers": [
+    {
+      "class_name": "OpenClawContainer",
+      "image": "./packages/container",
+      "instance_type": "standard",
+      "max_instances": 5
+    }
+  ],
+
+  // Durable Objects (Container class exported from Worker)
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "OPENCLAW_CONTAINER",
+        "class_name": "OpenClawContainer"
+      }
+    ]
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["OpenClawContainer"]
+    }
+  ],
+
+  // D1 Database (replaces DynamoDB)
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "serverless-openclaw-db",
+      "database_id": "placeholder-replace-after-creation",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // R2 Bucket (replaces S3)
+  "r2_buckets": [
+    {
+      "binding": "DATA_BUCKET",
+      "bucket_name": "serverless-openclaw-data"
+    }
+  ],
+
+  // KV Namespace (for ephemeral session/connection state)
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS",
+      "id": "placeholder-replace-after-creation"
+    }
+  ],
+
+  // Worker Secrets (set via `wrangler secret put`)
+  // BRIDGE_AUTH_TOKEN, OPENCLAW_GATEWAY_TOKEN, ANTHROPIC_API_KEY,
+  // TELEGRAM_BOT_TOKEN, TELEGRAM_SECRET_TOKEN, COGNITO_JWKS_URL
+
+  // Static variables
+  "vars": {
+    "COGNITO_USER_POOL_ID": "",
+    "COGNITO_CLIENT_ID": "",
+    "COGNITO_ISSUER": ""
+  },
+
+  // Assets (Web UI served from Worker)
+  "assets": {
+    "directory": "packages/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  }
+}
