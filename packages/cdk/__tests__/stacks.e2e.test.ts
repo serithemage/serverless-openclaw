@@ -392,3 +392,31 @@ describe("ApiStack with PREWARM_SCHEDULE", () => {
     }
   });
 });
+
+describe("ApiStack with AGENT_RUNTIME=lambda", () => {
+  it("does not contain Fargate SSM dynamic references", () => {
+    const app = new cdk.App();
+    const network = new NetworkStack(app, "LambdaModeNetworkStack");
+    const storage = new StorageStack(app, "LambdaModeStorageStack");
+    const auth = new AuthStack(app, "LambdaModeAuthStack");
+    const api = new ApiStack(app, "LambdaModeApiStack", {
+      vpc: network.vpc,
+      fargateSecurityGroup: network.fargateSecurityGroup,
+      conversationsTable: storage.conversationsTable,
+      settingsTable: storage.settingsTable,
+      taskStateTable: storage.taskStateTable,
+      connectionsTable: storage.connectionsTable,
+      pendingMessagesTable: storage.pendingMessagesTable,
+      userPool: auth.userPool,
+      userPoolClient: auth.userPoolClient,
+      agentRuntime: "lambda",
+    });
+
+    const template = JSON.stringify(Template.fromStack(api).toJSON());
+    // Fargate SSM params must not appear — they don't exist when ComputeStack is skipped
+    expect(template).not.toContain("/serverless-openclaw/compute/cluster-arn");
+    expect(template).not.toContain("/serverless-openclaw/compute/task-definition-arn");
+    expect(template).not.toContain("/serverless-openclaw/compute/task-role-arn");
+    expect(template).not.toContain("/serverless-openclaw/compute/execution-role-arn");
+  });
+});
