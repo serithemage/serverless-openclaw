@@ -240,6 +240,7 @@ describe("telegram-webhook handler", () => {
       expect.anything(),
       "67890",
       "123456",
+      { agentRuntime: undefined },
     );
     expect(mockSendTelegramMessage).toHaveBeenCalledWith(
       expect.anything(),

@@ -44,10 +44,12 @@ export async function handler(event: {
     secretToken.length === expectedToken.length &&
     timingSafeEqual(Buffer.from(secretToken), Buffer.from(expectedToken));
   if (!tokenMatch) {
+    console.warn("[telegram] auth failed: secret token mismatch");
     return { statusCode: 403, body: JSON.stringify({ error: "Forbidden" }) };
   }
 
   if (!event.body) {
+    console.log("[telegram] received empty body, ignoring");
     return { statusCode: 200, body: "OK" };
   }
 
@@ -55,10 +57,12 @@ export async function handler(event: {
   try {
     update = JSON.parse(event.body) as TelegramUpdate;
   } catch {
+    console.error("[telegram] failed to parse request body as JSON");
     return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
   if (!update.message?.text) {
+    console.log("[telegram] update has no message text, ignoring");
     return { statusCode: 200, body: "OK" };
   }
 
@@ -69,10 +73,14 @@ export async function handler(event: {
   const botToken = secrets.get(process.env.SSM_TELEGRAM_BOT_TOKEN!) ?? "";
   const text = update.message.text;
 
+  console.log("[telegram] received message", { chatId, telegramId, textLength: text.length });
+
   // Handle /link command
   if (text.startsWith("/link ")) {
     const code = text.slice(6).trim();
+    console.log("[telegram] /link command received", { telegramId });
     if (!/^\d{6}$/.test(code)) {
+      console.warn("[telegram] /link invalid code format", { telegramId });
       if (botToken) {
         await sendTelegramMessage(
           fetch as never,
@@ -83,7 +91,10 @@ export async function handler(event: {
       }
       return { statusCode: 200, body: "OK" };
     }
-    const result = await verifyOtpAndLink(dynamoSend, telegramId, code);
+    const result = await verifyOtpAndLink(dynamoSend, telegramId, code, {
+      agentRuntime: process.env.AGENT_RUNTIME,
+    });
+    console.log("[telegram] /link result", { telegramId, success: !("error" in result) });
     if (botToken) {
       const msg = "error" in result
         ? `❌ ${result.error}`
@@ -95,6 +106,7 @@ export async function handler(event: {
 
   // Handle /unlink command
   if (text === "/unlink") {
+    console.log("[telegram] /unlink command received", { telegramId });
     if (botToken) {
       await sendTelegramMessage(
         fetch as never,
@@ -108,18 +120,23 @@ export async function handler(event: {
 
   // Resolve telegram userId to linked cognito userId if available
   const userId = await resolveUserId(dynamoSend, rawUserId);
+  console.log("[telegram] resolved userId", { rawUserId, userId, linked: userId !== rawUserId });
 
-  // Check task state for cold start reply
-  const taskState = await getTaskState(dynamoSend, userId);
-  const needsColdStart = !taskState || taskState.status === "Starting";
+  // Cold start reply — only relevant for Fargate (Lambda has no persistent task state)
+  const agentRuntime = (process.env.AGENT_RUNTIME as "lambda" | "fargate" | "both") ?? "fargate";
+  if (agentRuntime !== "lambda") {
+    const taskState = await getTaskState(dynamoSend, userId);
+    const needsColdStart = !taskState || taskState.status === "Starting";
+    console.log("[telegram] fargate task state", { userId, taskStatus: taskState?.status ?? "none", needsColdStart });
 
-  if (needsColdStart && botToken) {
-    await sendTelegramMessage(
-      fetch as never,
-      botToken,
-      connectionId,
-      "🔄 Waking up the agent... please wait.",
-    );
+    if (needsColdStart && botToken) {
+      await sendTelegramMessage(
+        fetch as never,
+        botToken,
+        connectionId,
+        "🔄 Waking up the agent... please wait.",
+      );
+    }
   }
 
   // Build environment for RunTask — include TELEGRAM_CHAT_ID when using resolved userId
@@ -132,6 +149,7 @@ export async function handler(event: {
     taskEnv.push({ name: "TELEGRAM_CHAT_ID", value: String(chatId) });
   }
 
+  console.log("[telegram] routing message", { userId, channel: "telegram", agentRuntime });
   await routeMessage({
     userId,
     message: text,
@@ -158,5 +176,6 @@ export async function handler(event: {
     lambdaAgentFunctionArn: process.env.LAMBDA_AGENT_FUNCTION_ARN ?? "",
   });
 
+  console.log("[telegram] message routed successfully", { userId });
   return { statusCode: 200, body: "OK" };
 }

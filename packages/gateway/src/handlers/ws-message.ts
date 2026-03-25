@@ -13,6 +13,7 @@ import { getTaskState, putTaskState, deleteTaskState } from "../services/task-st
 import { routeMessage, savePendingMessage } from "../services/message.js";
 import { startTask } from "../services/container.js";
 import { resolveSecrets } from "../services/secrets.js";
+import { invokeLambdaAgent } from "../services/lambda-agent.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ecs = new ECSClient({});
@@ -96,6 +97,9 @@ export async function handler(event: {
           { name: "CALLBACK_URL", value: process.env.WEBSOCKET_CALLBACK_URL ?? "" },
         ],
       },
+      agentRuntime: (process.env.AGENT_RUNTIME as "lambda" | "fargate" | "both") ?? "fargate",
+      invokeLambdaAgent,
+      lambdaAgentFunctionArn: process.env.LAMBDA_AGENT_FUNCTION_ARN ?? "",
     });
 
     if (result === "started" || result === "queued") {

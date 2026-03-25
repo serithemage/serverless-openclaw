@@ -79,6 +79,7 @@ export async function verifyOtpAndLink(
   send: Send,
   telegramUserId: string,
   code: string,
+  options?: { agentRuntime?: string },
 ): Promise<{ cognitoUserId: string } | { error: string }> {
   const telegramKey = `telegram:${telegramUserId}`;
 
@@ -101,22 +102,24 @@ export async function verifyOtpAndLink(
   }
   const cognitoUserId = otpOwner.cognitoUserId;
 
-  // 2. Check if telegram user has a running container (before consuming OTP)
-  const taskResult = (await send(
-    new GetCommand({
-      TableName: TABLE_NAMES.TASK_STATE,
-      Key: { PK: `${KEY_PREFIX.USER}${telegramKey}` },
-    }),
-  )) as GetResult;
+  // 2. Check if telegram user has a running container (Fargate only)
+  if (options?.agentRuntime !== "lambda") {
+    const taskResult = (await send(
+      new GetCommand({
+        TableName: TABLE_NAMES.TASK_STATE,
+        Key: { PK: `${KEY_PREFIX.USER}${telegramKey}` },
+      }),
+    )) as GetResult;
 
-  const taskState = taskResult.Item as
-    | { status: string }
-    | undefined;
-  if (taskState && taskState.status !== "Idle") {
-    return {
-      error:
-        "A Telegram container is currently running. Please try again in about 15 minutes.",
-    };
+    const taskState = taskResult.Item as
+      | { status: string }
+      | undefined;
+    if (taskState && taskState.status !== "Idle") {
+      return {
+        error:
+          "A Telegram container is currently running. Please try again in about 15 minutes.",
+      };
+    }
   }
 
   // 3. Check if telegram is already linked to a different account
