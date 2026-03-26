@@ -72,6 +72,8 @@ export interface RouteDeps {
   invokeLambdaAgent?: (params: InvokeLambdaAgentParams) => Promise<LambdaAgentResponse>;
   lambdaAgentFunctionArn?: string;
   sessionId?: string;
+  /** Called with agent payloads after a successful lambda invocation — caller is responsible for delivery */
+  onLambdaResponse?: (payloads: LambdaAgentResponse["payloads"]) => Promise<void>;
 }
 
 export type RouteResult = "sent" | "queued" | "started" | "lambda";
@@ -171,6 +173,9 @@ export async function routeMessage(deps: RouteDeps): Promise<RouteResult> {
     if (!response.success) {
       throw new Error(response.error ?? "Lambda agent failed");
     }
+    if (deps.onLambdaResponse) {
+      await deps.onLambdaResponse(response.payloads);
+    }
     return "lambda";
   }
 
@@ -204,6 +209,9 @@ export async function routeMessage(deps: RouteDeps): Promise<RouteResult> {
       connectionId: deps.connectionId,
     });
     if (response.success) {
+      if (deps.onLambdaResponse) {
+        await deps.onLambdaResponse(response.payloads);
+      }
       return "lambda";
     }
     // Lambda failed — fall back to Fargate

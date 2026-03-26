@@ -355,7 +355,7 @@ describe("ApiStack with PREWARM_SCHEDULE", () => {
       const network = new NetworkStack(app, "PrewarmNetworkStack");
       const storage = new StorageStack(app, "PrewarmStorageStack");
       const auth = new AuthStack(app, "PrewarmAuthStack");
-      const compute = new ComputeStack(app, "PrewarmComputeStack", {
+      new ComputeStack(app, "PrewarmComputeStack", {
         vpc: network.vpc,
         fargateSecurityGroup: network.fargateSecurityGroup,
         conversationsTable: storage.conversationsTable,

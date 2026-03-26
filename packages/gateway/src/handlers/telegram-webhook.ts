@@ -171,9 +171,16 @@ export async function handler(event: {
       containerName: "openclaw",
       environment: taskEnv,
     },
-    agentRuntime: (process.env.AGENT_RUNTIME as "lambda" | "fargate" | "both") ?? "fargate",
+    agentRuntime,
     invokeLambdaAgent,
     lambdaAgentFunctionArn: process.env.LAMBDA_AGENT_FUNCTION_ARN ?? "",
+    onLambdaResponse: async (payloads) => {
+      for (const payload of payloads ?? []) {
+        if (payload.text && botToken) {
+          await sendTelegramMessage(fetch as never, botToken, connectionId, payload.text);
+        }
+      }
+    },
   });
 
   console.log("[telegram] message routed successfully", { userId });
