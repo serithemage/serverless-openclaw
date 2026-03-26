@@ -64,9 +64,15 @@ function sectionHeader(title: string, description: string): cloudwatch.TextWidge
   });
 }
 
+export interface MonitoringStackProps extends cdk.StackProps {
+  agentRuntime?: string;
+}
+
 export class MonitoringStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: MonitoringStackProps) {
     super(scope, id, props);
+
+    const fargateEnabled = (props?.agentRuntime ?? "fargate") !== "lambda";
 
     const dashboard = new cloudwatch.Dashboard(this, "Dashboard", {
       dashboardName: "ServerlessOpenClaw",
@@ -74,52 +80,54 @@ export class MonitoringStack extends cdk.Stack {
     });
 
     // ════════════════════════════════════════════════════════════════
-    //  Section 1: Cold Start Performance
+    //  Section 1: Cold Start Performance (Fargate only)
     // ════════════════════════════════════════════════════════════════
 
-    dashboard.addWidgets(
-      sectionHeader(
-        "Cold Start Performance",
-        "Fargate container startup time. Breakdown by phase: S3 restore → Gateway connection → Client ready.",
-      ),
-    );
+    if (fargateEnabled) {
+      dashboard.addWidgets(
+        sectionHeader(
+          "Cold Start Performance",
+          "Fargate container startup time. Breakdown by phase: S3 restore → Gateway connection → Client ready.",
+        ),
+      );
 
-    dashboard.addWidgets(
-      new cloudwatch.SingleValueWidget({
-        title: "Startup Total (p50)",
-        metrics: channelMetrics("StartupTotal", "p50", cloudwatch.Unit.MILLISECONDS),
-        width: 4,
-        height: 4,
-      }),
-      new cloudwatch.GraphWidget({
-        title: "Startup Total — p50 / p99",
-        left: [
-          ...channelMetrics("StartupTotal", "p50", cloudwatch.Unit.MILLISECONDS),
-          ...channelMetrics("StartupTotal", "p99", cloudwatch.Unit.MILLISECONDS),
-        ],
-        width: 8,
-        height: 4,
-        leftYAxis: { label: "ms" },
-      }),
-      new cloudwatch.GraphWidget({
-        title: "Startup Phase Breakdown (avg)",
-        left: [
-          ...channelMetrics("StartupS3Restore", "Average", cloudwatch.Unit.MILLISECONDS),
-          ...channelMetrics("StartupGatewayWait", "Average", cloudwatch.Unit.MILLISECONDS),
-          ...channelMetrics("StartupClientReady", "Average", cloudwatch.Unit.MILLISECONDS),
-        ],
-        width: 6,
-        height: 4,
-        stacked: true,
-        leftYAxis: { label: "ms" },
-      }),
-      new cloudwatch.SingleValueWidget({
-        title: "First Response (p50)",
-        metrics: channelMetrics("FirstResponseTime", "p50", cloudwatch.Unit.MILLISECONDS),
-        width: 6,
-        height: 4,
-      }),
-    );
+      dashboard.addWidgets(
+        new cloudwatch.SingleValueWidget({
+          title: "Startup Total (p50)",
+          metrics: channelMetrics("StartupTotal", "p50", cloudwatch.Unit.MILLISECONDS),
+          width: 4,
+          height: 4,
+        }),
+        new cloudwatch.GraphWidget({
+          title: "Startup Total — p50 / p99",
+          left: [
+            ...channelMetrics("StartupTotal", "p50", cloudwatch.Unit.MILLISECONDS),
+            ...channelMetrics("StartupTotal", "p99", cloudwatch.Unit.MILLISECONDS),
+          ],
+          width: 8,
+          height: 4,
+          leftYAxis: { label: "ms" },
+        }),
+        new cloudwatch.GraphWidget({
+          title: "Startup Phase Breakdown (avg)",
+          left: [
+            ...channelMetrics("StartupS3Restore", "Average", cloudwatch.Unit.MILLISECONDS),
+            ...channelMetrics("StartupGatewayWait", "Average", cloudwatch.Unit.MILLISECONDS),
+            ...channelMetrics("StartupClientReady", "Average", cloudwatch.Unit.MILLISECONDS),
+          ],
+          width: 6,
+          height: 4,
+          stacked: true,
+          leftYAxis: { label: "ms" },
+        }),
+        new cloudwatch.SingleValueWidget({
+          title: "First Response (p50)",
+          metrics: channelMetrics("FirstResponseTime", "p50", cloudwatch.Unit.MILLISECONDS),
+          width: 6,
+          height: 4,
+        }),
+      );
+    }
 
     // ════════════════════════════════════════════════════════════════
     //  Section 2: Message Processing
@@ -254,67 +262,69 @@ export class MonitoringStack extends cdk.Stack {
     );
 
     // ════════════════════════════════════════════════════════════════
-    //  Section 5: Predictive Pre-Warming
+    //  Section 5: Predictive Pre-Warming (Fargate only)
     // ════════════════════════════════════════════════════════════════
 
-    dashboard.addWidgets(
-      sectionHeader(
-        "Predictive Pre-Warming",
-        "Pre-warm triggers and skips. Triggered = new container started proactively. Skipped = existing container reused.",
-      ),
-    );
+    if (fargateEnabled) {
+      dashboard.addWidgets(
+        sectionHeader(
+          "Predictive Pre-Warming",
+          "Pre-warm triggers and skips. Triggered = new container started proactively. Skipped = existing container reused.",
+        ),
+      );
 
-    dashboard.addWidgets(
-      new cloudwatch.GraphWidget({
-        title: "Prewarm Events",
-        left: [
-          new cloudwatch.Metric({
-            namespace: NAMESPACE,
-            metricName: "PrewarmTriggered",
-            statistic: "Sum",
-            period: cdk.Duration.minutes(5),
-            label: "Triggered",
-          }),
-          new cloudwatch.Metric({
-            namespace: NAMESPACE,
-            metricName: "PrewarmSkipped",
-            statistic: "Sum",
-            period: cdk.Duration.minutes(5),
-            label: "Skipped",
-          }),
-        ],
-        width: 12,
-        height: 4,
-      }),
-      new cloudwatch.SingleValueWidget({
-        title: "Prewarm Triggered (24h)",
-        metrics: [
-          new cloudwatch.Metric({
-            namespace: NAMESPACE,
-            metricName: "PrewarmTriggered",
-            statistic: "Sum",
-            period: cdk.Duration.hours(24),
-            label: "Triggered",
-          }),
-        ],
-        width: 6,
-        height: 4,
-      }),
-      new cloudwatch.SingleValueWidget({
-        title: "Prewarm Skipped (24h)",
-        metrics: [
-          new cloudwatch.Metric({
-            namespace: NAMESPACE,
-            metricName: "PrewarmSkipped",
-            statistic: "Sum",
-            period: cdk.Duration.hours(24),
-            label: "Skipped",
-          }),
-        ],
-        width: 6,
-        height: 4,
-      }),
-    );
+      dashboard.addWidgets(
+        new cloudwatch.GraphWidget({
+          title: "Prewarm Events",
+          left: [
+            new cloudwatch.Metric({
+              namespace: NAMESPACE,
+              metricName: "PrewarmTriggered",
+              statistic: "Sum",
+              period: cdk.Duration.minutes(5),
+              label: "Triggered",
+            }),
+            new cloudwatch.Metric({
+              namespace: NAMESPACE,
+              metricName: "PrewarmSkipped",
+              statistic: "Sum",
+              period: cdk.Duration.minutes(5),
+              label: "Skipped",
+            }),
+          ],
+          width: 12,
+          height: 4,
+        }),
+        new cloudwatch.SingleValueWidget({
+          title: "Prewarm Triggered (24h)",
+          metrics: [
+            new cloudwatch.Metric({
+              namespace: NAMESPACE,
+              metricName: "PrewarmTriggered",
+              statistic: "Sum",
+              period: cdk.Duration.hours(24),
+              label: "Triggered",
+            }),
+          ],
+          width: 6,
+          height: 4,
+        }),
+        new cloudwatch.SingleValueWidget({
+          title: "Prewarm Skipped (24h)",
+          metrics: [
+            new cloudwatch.Metric({
+              namespace: NAMESPACE,
+              metricName: "PrewarmSkipped",
+              statistic: "Sum",
+              period: cdk.Duration.hours(24),
+              label: "Skipped",
+            }),
+          ],
+          width: 6,
+          height: 4,
+        }),
+      );
+    }
 
     // ════════════════════════════════════════════════════════════════
     //  Section 6: Infrastructure — ECS & DynamoDB
@@ -327,31 +337,36 @@ export class MonitoringStack extends cdk.Stack {
       ),
     );
 
+    if (fargateEnabled) {
+      dashboard.addWidgets(
+        new cloudwatch.GraphWidget({
+          title: "Fargate CPU / Memory (%)",
+          left: [
+            new cloudwatch.Metric({
+              namespace: "AWS/ECS",
+              metricName: "CPUUtilization",
+              dimensionsMap: { ClusterName: "serverless-openclaw" },
+              statistic: "Average",
+              period: cdk.Duration.minutes(5),
+              label: "CPU",
+            }),
+            new cloudwatch.Metric({
+              namespace: "AWS/ECS",
+              metricName: "MemoryUtilization",
+              dimensionsMap: { ClusterName: "serverless-openclaw" },
+              statistic: "Average",
+              period: cdk.Duration.minutes(5),
+              label: "Memory",
+            }),
+          ],
+          width: 8,
+          height: 4,
+          leftYAxis: { label: "%", max: 100 },
+        }),
+      );
+    }
+
     dashboard.addWidgets(
-      new cloudwatch.GraphWidget({
-        title: "Fargate CPU / Memory (%)",
-        left: [
-          new cloudwatch.Metric({
-            namespace: "AWS/ECS",
-            metricName: "CPUUtilization",
-            dimensionsMap: { ClusterName: "serverless-openclaw" },
-            statistic: "Average",
-            period: cdk.Duration.minutes(5),
-            label: "CPU",
-          }),
-          new cloudwatch.Metric({
-            namespace: "AWS/ECS",
-            metricName: "MemoryUtilization",
-            dimensionsMap: { ClusterName: "serverless-openclaw" },
-            statistic: "Average",
-            period: cdk.Duration.minutes(5),
-            label: "Memory",
-          }),
-        ],
-        width: 8,
-        height: 4,
-        leftYAxis: { label: "%", max: 100 },
-      }),
       new cloudwatch.GraphWidget({
         title: "DynamoDB Read Capacity",
         left: Object.values(TABLE_NAMES).map(

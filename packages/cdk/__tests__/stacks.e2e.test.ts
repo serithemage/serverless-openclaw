@@ -68,8 +68,7 @@ describe("CDK Stacks E2E — synth all stacks", () => {
       pendingMessagesTable: storage.pendingMessagesTable,
       userPool: auth.userPool,
       userPoolClient: auth.userPoolClient,
-      cluster: compute.cluster,
-      taskDefinition: compute.taskDefinition,
+      agentRuntime: "fargate",
     });
 
     // Step 1-8: Web UI
@@ -81,7 +80,9 @@ describe("CDK Stacks E2E — synth all stacks", () => {
     });
 
     // Monitoring Dashboard
-    const monitoring = new MonitoringStack(app, "TestMonitoringStack");
+    const monitoring = new MonitoringStack(app, "TestMonitoringStack", {
+      agentRuntime: "fargate",
+    });
 
     secretsTemplate = Template.fromStack(secrets);
     networkTemplate = Template.fromStack(network);
@@ -417,5 +418,316 @@ describe("ApiStack with AGENT_RUNTIME=lambda", () => {
     expect(template).not.toContain("/serverless-openclaw/compute/task-definition-arn");
     expect(template).not.toContain("/serverless-openclaw/compute/task-role-arn");
     expect(template).not.toContain("/serverless-openclaw/compute/execution-role-arn");
+  });
+});
+
+/**
+ * Preservation Property Tests
+ *
+ * These tests verify that fargate and both modes remain unchanged.
+ * They MUST PASS on unfixed code — passing confirms the baseline behavior to preserve.
+ *
+ * Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5
+ */
+describe("Preservation: fargate and both modes unchanged", () => {
+  it("fargate mode: NetworkStack creates VPC, ApiStack has Fargate env vars, MonitoringStack has ECS metrics", () => {
+    const app = new cdk.App();
+    const network = new NetworkStack(app, "PresFargateNetworkStack");
+    const storage = new StorageStack(app, "PresFargateStorageStack");
+    const auth = new AuthStack(app, "PresFargateAuthStack");
+
+    const api = new ApiStack(app, "PresFargateApiStack", {
+      vpc: network.vpc,
+      fargateSecurityGroup: network.fargateSecurityGroup,
+      conversationsTable: storage.conversationsTable,
+      settingsTable: storage.settingsTable,
+      taskStateTable: storage.taskStateTable,
+      connectionsTable: storage.connectionsTable,
+      pendingMessagesTable: storage.pendingMessagesTable,
+      userPool: auth.userPool,
+      userPoolClient: auth.userPoolClient,
+      agentRuntime: "fargate",
+    });
+
+    const monitoring = new MonitoringStack(app, "PresFargateMonitoringStack");
+
+    // NetworkStack creates VPC
+    const networkTemplate = Template.fromStack(network);
+    networkTemplate.resourceCountIs("AWS::EC2::VPC", 1);
+
+    // ApiStack Lambda functions have Fargate env vars
+    const apiTemplate = Template.fromStack(api);
+    const functions = apiTemplate.findResources("AWS::Lambda::Function");
+    const fnEntries = Object.entries(functions);
+    expect(fnEntries.length).toBe(7);
+
+    for (const [fnName, fn] of fnEntries) {
+      const props = (fn as Record<string, unknown>).Properties as Record<string, unknown>;
+      const envBlock = props.Environment as Record<string, unknown>;
+      const vars = envBlock.Variables as Record<string, unknown>;
+      expect(vars, `Lambda ${fnName} should have ECS_CLUSTER_ARN`).toHaveProperty("ECS_CLUSTER_ARN");
+      expect(vars, `Lambda ${fnName} should have SUBNET_IDS`).toHaveProperty("SUBNET_IDS");
+    }
+
+    // MonitoringStack dashboard contains AWS/ECS metrics
+    const monTemplate = Template.fromStack(monitoring);
+    const dashboards = monTemplate.findResources("AWS::CloudWatch::Dashboard");
+    const dashboardJson = JSON.stringify(dashboards);
+    expect(dashboardJson).toContain("AWS/ECS");
+  });
+
+  it("both mode: all stacks present, ApiStack has both ECS_CLUSTER_ARN and LAMBDA_AGENT_FUNCTION_ARN", () => {
+    const app = new cdk.App();
+    const network = new NetworkStack(app, "PresBothNetworkStack");
+    const storage = new StorageStack(app, "PresBothStorageStack");
+    const auth = new AuthStack(app, "PresBothAuthStack");
+
+    new ComputeStack(app, "PresBothComputeStack", {
+      vpc: network.vpc,
+      fargateSecurityGroup: network.fargateSecurityGroup,
+      conversationsTable: storage.conversationsTable,
+      settingsTable: storage.settingsTable,
+      taskStateTable: storage.taskStateTable,
+      connectionsTable: storage.connectionsTable,
+      pendingMessagesTable: storage.pendingMessagesTable,
+      dataBucket: storage.dataBucket,
+      ecrRepository: storage.ecrRepository,
+    });
+
+    new LambdaAgentStack(app, "PresBothLambdaAgentStack", {
+      dataBucket: storage.dataBucket,
+      taskStateTable: storage.taskStateTable,
+    });
+
+    const api = new ApiStack(app, "PresBothApiStack", {
+      vpc: network.vpc,
+      fargateSecurityGroup: network.fargateSecurityGroup,
+      conversationsTable: storage.conversationsTable,
+      settingsTable: storage.settingsTable,
+      taskStateTable: storage.taskStateTable,
+      connectionsTable: storage.connectionsTable,
+      pendingMessagesTable: storage.pendingMessagesTable,
+      userPool: auth.userPool,
+      userPoolClient: auth.userPoolClient,
+      agentRuntime: "both",
+    });
+
+    // ApiStack has both Fargate and Lambda env vars
+    const apiTemplate = Template.fromStack(api);
+    const functions = apiTemplate.findResources("AWS::Lambda::Function");
+
+    for (const [fnName, fn] of Object.entries(functions)) {
+      const props = (fn as Record<string, unknown>).Properties as Record<string, unknown>;
+      const envBlock = props.Environment as Record<string, unknown>;
+      const vars = envBlock.Variables as Record<string, unknown>;
+      expect(vars, `Lambda ${fnName} should have ECS_CLUSTER_ARN`).toHaveProperty("ECS_CLUSTER_ARN");
+      expect(vars, `Lambda ${fnName} should have LAMBDA_AGENT_FUNCTION_ARN`).toHaveProperty("LAMBDA_AGENT_FUNCTION_ARN");
+    }
+  });
+
+  it("default mode: no agentRuntime defaults to fargate behavior", () => {
+    const app = new cdk.App();
+    const network = new NetworkStack(app, "PresDefaultNetworkStack");
+    const storage = new StorageStack(app, "PresDefaultStorageStack");
+    const auth = new AuthStack(app, "PresDefaultAuthStack");
+
+    // No agentRuntime prop — should default to fargate
+    const api = new ApiStack(app, "PresDefaultApiStack", {
+      vpc: network.vpc,
+      fargateSecurityGroup: network.fargateSecurityGroup,
+      conversationsTable: storage.conversationsTable,
+      settingsTable: storage.settingsTable,
+      taskStateTable: storage.taskStateTable,
+      connectionsTable: storage.connectionsTable,
+      pendingMessagesTable: storage.pendingMessagesTable,
+      userPool: auth.userPool,
+      userPoolClient: auth.userPoolClient,
+    });
+
+    // NetworkStack creates VPC (always created when no agentRuntime)
+    const networkTemplate = Template.fromStack(network);
+    networkTemplate.resourceCountIs("AWS::EC2::VPC", 1);
+
+    // ApiStack has full Fargate env vars (default behavior)
+    const apiTemplate = Template.fromStack(api);
+    const functions = apiTemplate.findResources("AWS::Lambda::Function");
+    expect(Object.keys(functions).length).toBe(7);
+
+    for (const [fnName, fn] of Object.entries(functions)) {
+      const props = (fn as Record<string, unknown>).Properties as Record<string, unknown>;
+      const envBlock = props.Environment as Record<string, unknown>;
+      const vars = envBlock.Variables as Record<string, unknown>;
+      expect(vars, `Lambda ${fnName} should have ECS_CLUSTER_ARN`).toHaveProperty("ECS_CLUSTER_ARN");
+      expect(vars, `Lambda ${fnName} should have TASK_DEFINITION_ARN`).toHaveProperty("TASK_DEFINITION_ARN");
+      expect(vars, `Lambda ${fnName} should have SUBNET_IDS`).toHaveProperty("SUBNET_IDS");
+      expect(vars, `Lambda ${fnName} should have SECURITY_GROUP_IDS`).toHaveProperty("SECURITY_GROUP_IDS");
+    }
+  });
+
+  it("IAM preservation: fargate mode has ECS RunTask/StopTask/DescribeTasks policies", () => {
+    const app = new cdk.App();
+    const network = new NetworkStack(app, "PresIamNetworkStack");
+    const storage = new StorageStack(app, "PresIamStorageStack");
+    const auth = new AuthStack(app, "PresIamAuthStack");
+
+    const api = new ApiStack(app, "PresIamApiStack", {
+      vpc: network.vpc,
+      fargateSecurityGroup: network.fargateSecurityGroup,
+      conversationsTable: storage.conversationsTable,
+      settingsTable: storage.settingsTable,
+      taskStateTable: storage.taskStateTable,
+      connectionsTable: storage.connectionsTable,
+      pendingMessagesTable: storage.pendingMessagesTable,
+      userPool: auth.userPool,
+      userPoolClient: auth.userPoolClient,
+      agentRuntime: "fargate",
+    });
+
+    const apiTemplate = Template.fromStack(api);
+    const templateJson = JSON.stringify(apiTemplate.toJSON());
+
+    // ECS IAM policies must be present for container functions
+    expect(templateJson).toContain("ecs:RunTask");
+    expect(templateJson).toContain("ecs:StopTask");
+    expect(templateJson).toContain("ecs:DescribeTasks");
+  });
+
+  it("dashboard preservation: fargate MonitoringStack has Cold Start, Pre-Warming, and ECS sections", () => {
+    const app = new cdk.App();
+    const monitoring = new MonitoringStack(app, "PresDashMonitoringStack");
+
+    const monTemplate = Template.fromStack(monitoring);
+    const dashboards = monTemplate.findResources("AWS::CloudWatch::Dashboard");
+    const dashboardJson = JSON.stringify(dashboards);
+
+    // Cold Start Performance section
+    expect(dashboardJson).toContain("Cold Start Performance");
+    // Predictive Pre-Warming section
+    expect(dashboardJson).toContain("Predictive Pre-Warming");
+    // ECS CPU/Memory section
+    expect(dashboardJson).toContain("AWS/ECS");
+    expect(dashboardJson).toContain("CPUUtilization");
+    expect(dashboardJson).toContain("MemoryUtilization");
+  });
+});
+
+/**
+ * Bug Condition Exploration Tests
+ *
+ * These tests encode the EXPECTED behavior after the fix.
+ * On UNFIXED code, they are EXPECTED TO FAIL — failure confirms the bug exists.
+ *
+ * Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5
+ */
+describe("Bug Condition: AGENT_RUNTIME=lambda Fargate dependencies", () => {
+  it("full app synth with AGENT_RUNTIME=lambda creates no NetworkStack VPC resources", () => {
+    // Simulate the FIXED app.ts behavior — when agentRuntime=lambda, NetworkStack is not created
+    const app = new cdk.App();
+    const agentRuntime = "lambda";
+
+    new SecretsStack(app, "BugCondNetSecretsStack");
+    const storage = new StorageStack(app, "BugCondNetStorageStack");
+    const auth = new AuthStack(app, "BugCondNetAuthStack");
+
+    // After fix: NetworkStack is NOT created when agentRuntime=lambda
+    new ApiStack(app, "BugCondNetApiStack", {
+      conversationsTable: storage.conversationsTable,
+      settingsTable: storage.settingsTable,
+      taskStateTable: storage.taskStateTable,
+      connectionsTable: storage.connectionsTable,
+      pendingMessagesTable: storage.pendingMessagesTable,
+      userPool: auth.userPool,
+      userPoolClient: auth.userPoolClient,
+      agentRuntime,
+    });
+
+    // Assert: no VPC resources should exist anywhere in the app when AGENT_RUNTIME=lambda
+    const allStacks = app.node.children.filter((c): c is cdk.Stack => c instanceof cdk.Stack);
+    let vpcCount = 0;
+    for (const stack of allStacks) {
+      const template = Template.fromStack(stack);
+      const vpcs = template.findResources("AWS::EC2::VPC");
+      vpcCount += Object.keys(vpcs).length;
+    }
+    expect(vpcCount).toBe(0);
+  });
+
+  it("ApiStack with agentRuntime=lambda synthesizes without vpc/fargateSecurityGroup props", { timeout: 30_000 }, () => {
+    const app = new cdk.App();
+    const storage = new StorageStack(app, "BugCondApiStorageStack");
+    const auth = new AuthStack(app, "BugCondApiAuthStack");
+
+    // After fix, vpc and fargateSecurityGroup are optional props.
+    const api = new ApiStack(app, "BugCondApiStack", {
+      conversationsTable: storage.conversationsTable,
+      settingsTable: storage.settingsTable,
+      taskStateTable: storage.taskStateTable,
+      connectionsTable: storage.connectionsTable,
+      pendingMessagesTable: storage.pendingMessagesTable,
+      userPool: auth.userPool,
+      userPoolClient: auth.userPoolClient,
+      agentRuntime: "lambda",
+    });
+
+    const template = JSON.stringify(Template.fromStack(api).toJSON());
+    // Should not contain any Fargate SSM parameter references
+    expect(template).not.toContain("/serverless-openclaw/compute/cluster-arn");
+    expect(template).not.toContain("/serverless-openclaw/compute/task-definition-arn");
+    expect(template).not.toContain("/serverless-openclaw/compute/task-role-arn");
+    expect(template).not.toContain("/serverless-openclaw/compute/execution-role-arn");
+  });
+
+  it("ApiStack with agentRuntime=lambda has no Fargate env vars on Lambda functions", { timeout: 30_000 }, () => {
+    const app = new cdk.App();
+    const network = new NetworkStack(app, "BugCondEnvNetworkStack");
+    const storage = new StorageStack(app, "BugCondEnvStorageStack");
+    const auth = new AuthStack(app, "BugCondEnvAuthStack");
+
+    const api = new ApiStack(app, "BugCondEnvApiStack", {
+      vpc: network.vpc,
+      fargateSecurityGroup: network.fargateSecurityGroup,
+      conversationsTable: storage.conversationsTable,
+      settingsTable: storage.settingsTable,
+      taskStateTable: storage.taskStateTable,
+      connectionsTable: storage.connectionsTable,
+      pendingMessagesTable: storage.pendingMessagesTable,
+      userPool: auth.userPool,
+      userPoolClient: auth.userPoolClient,
+      agentRuntime: "lambda",
+    });
+
+    const template = Template.fromStack(api);
+    const functions = template.findResources("AWS::Lambda::Function");
+
+    const fargateEnvVars = ["ECS_CLUSTER_ARN", "TASK_DEFINITION_ARN", "SUBNET_IDS", "SECURITY_GROUP_IDS"];
+
+    for (const [fnName, fn] of Object.entries(functions)) {
+      const props = (fn as Record<string, unknown>).Properties as Record<string, unknown>;
+      const envBlock = props.Environment as Record<string, unknown> | undefined;
+      const vars = (envBlock?.Variables ?? {}) as Record<string, unknown>;
+
+      for (const envVar of fargateEnvVars) {
+        expect(vars, `Lambda ${fnName} should not have ${envVar}`).not.toHaveProperty(envVar);
+      }
+    }
+  });
+
+  it("MonitoringStack with agentRuntime=lambda has no Fargate dashboard widgets", () => {
+    const app = new cdk.App();
+
+    // After fix, MonitoringStack accepts { agentRuntime } props.
+    const monitoring = new MonitoringStack(app, "BugCondMonMonitoringStack", {
+      agentRuntime: "lambda",
+    });
+
+    const template = Template.fromStack(monitoring);
+    const dashboards = template.findResources("AWS::CloudWatch::Dashboard");
+    const dashboardJson = JSON.stringify(dashboards);
+
+    // Should not contain ECS namespace metrics
+    expect(dashboardJson).not.toContain("AWS/ECS");
+    // Should not contain prewarm custom metrics
+    expect(dashboardJson).not.toContain("PrewarmTriggered");
+    expect(dashboardJson).not.toContain("PrewarmSkipped");
   });
 });

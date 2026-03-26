@@ -21,8 +21,11 @@ const deployWeb = process.env.DEPLOY_WEB !== "false"; // default: true (deploy w
 // Secrets (SSM SecureString parameters)
 const secrets = new SecretsStack(app, "SecretsStack");
 
-// Step 1-2: Network & Storage
-const network = new NetworkStack(app, "NetworkStack");
+// Step 1-2: Network & Storage — skip NetworkStack when AGENT_RUNTIME=lambda
+let network: NetworkStack | undefined;
+if (agentRuntime !== "lambda") {
+  network = new NetworkStack(app, "NetworkStack");
+}
 const storage = new StorageStack(app, "StorageStack");
 
 // Step 1-6: Auth
@@ -32,8 +35,8 @@ const auth = new AuthStack(app, "AuthStack");
 let compute: ComputeStack | undefined;
 if (agentRuntime !== "lambda") {
   compute = new ComputeStack(app, "ComputeStack", {
-    vpc: network.vpc,
-    fargateSecurityGroup: network.fargateSecurityGroup,
+    vpc: network!.vpc,
+    fargateSecurityGroup: network!.fargateSecurityGroup,
     conversationsTable: storage.conversationsTable,
     settingsTable: storage.settingsTable,
     taskStateTable: storage.taskStateTable,
@@ -60,8 +63,7 @@ if (agentRuntime !== "fargate") {
 // Step 1-5: API Gateway + Lambda
 // Note: compute resources (TaskDef, Cluster ARNs) read from SSM to avoid cross-stack export issues
 const api = new ApiStack(app, "ApiStack", {
-  vpc: network.vpc,
-  fargateSecurityGroup: network.fargateSecurityGroup,
+  ...(network ? { vpc: network.vpc, fargateSecurityGroup: network.fargateSecurityGroup } : {}),
   conversationsTable: storage.conversationsTable,
   settingsTable: storage.settingsTable,
   taskStateTable: storage.taskStateTable,
@@ -87,6 +89,6 @@ if (deployWeb) {
 }
 
 // Monitoring Dashboard
-new MonitoringStack(app, "MonitoringStack");
+new MonitoringStack(app, "MonitoringStack", { agentRuntime });
 
 app.synth();

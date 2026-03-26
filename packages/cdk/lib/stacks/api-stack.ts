@@ -27,8 +27,8 @@ import { WATCHDOG_INTERVAL_MINUTES } from "@serverless-openclaw/shared";
 import { SSM_PARAMS, SSM_SECRETS } from "./ssm-params.js";
 
 export interface ApiStackProps extends cdk.StackProps {
-  vpc: ec2.IVpc;
-  fargateSecurityGroup: ec2.ISecurityGroup;
+  vpc?: ec2.IVpc;
+  fargateSecurityGroup?: ec2.ISecurityGroup;
   conversationsTable: dynamodb.ITable;
   settingsTable: dynamodb.ITable;
   taskStateTable: dynamodb.ITable;
@@ -52,11 +52,15 @@ export class ApiStack extends cdk.Stack {
     const handlersDir = path.join(monorepoRoot, "packages", "gateway", "src", "handlers");
 
     // Common environment variables for Lambda functions
-    const subnetIds = props.vpc.publicSubnets.map((s) => s.subnetId).join(",");
-    const securityGroupIds = props.fargateSecurityGroup.securityGroupId;
-
     const agentRuntime = props.agentRuntime ?? "fargate";
     const fargateEnabled = agentRuntime !== "lambda";
+
+    let subnetIds = "";
+    let securityGroupIds = "";
+    if (fargateEnabled && props.vpc && props.fargateSecurityGroup) {
+      subnetIds = props.vpc.publicSubnets.map((s) => s.subnetId).join(",");
+      securityGroupIds = props.fargateSecurityGroup.securityGroupId;
+    }
 
     // Read Fargate compute resources from SSM — only when ComputeStack is deployed
     const taskDefArn = fargateEnabled
@@ -82,10 +86,14 @@ export class ApiStack extends cdk.Stack {
       TASK_STATE_TABLE: props.taskStateTable.tableName,
       CONNECTIONS_TABLE: props.connectionsTable.tableName,
       PENDING_MESSAGES_TABLE: props.pendingMessagesTable.tableName,
-      ECS_CLUSTER_ARN: clusterArn,
-      TASK_DEFINITION_ARN: taskDefArn,
-      SUBNET_IDS: subnetIds,
-      SECURITY_GROUP_IDS: securityGroupIds,
+      ...(fargateEnabled
+        ? {
+            ECS_CLUSTER_ARN: clusterArn,
+            TASK_DEFINITION_ARN: taskDefArn,
+            SUBNET_IDS: subnetIds,
+            SECURITY_GROUP_IDS: securityGroupIds,
+          }
+        : {}),
       AGENT_RUNTIME: agentRuntime,
       LAMBDA_AGENT_FUNCTION_ARN: lambdaAgentFunctionArn,
     };
