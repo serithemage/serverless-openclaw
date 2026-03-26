@@ -2,11 +2,15 @@ import type {
   LambdaAgentEvent,
   LambdaAgentResponse,
 } from "./types.js";
+import { resolveProviderConfig } from "@serverless-openclaw/shared";
 import { initConfig } from "./config-init.js";
 import { SessionSync } from "./session-sync.js";
 import { SessionLock } from "./session-lock.js";
 import { resolveSecrets } from "./secrets.js";
 import { runAgent } from "./agent-runner.js";
+
+// Resolved once at cold start
+const providerConfig = resolveProviderConfig();
 
 // Initialized once per Lambda cold start
 let initialized = false;
@@ -49,14 +53,24 @@ export async function handler(
 
   // Cold start initialization
   if (!initialized) {
-    const ssmKeyPath =
-      process.env.SSM_ANTHROPIC_API_KEY ??
-      "/serverless-openclaw/secrets/anthropic-api-key";
+    let apiKey: string | undefined;
 
-    const secrets = await resolveSecrets([ssmKeyPath]);
-    const apiKey = secrets.get(ssmKeyPath);
+    // When using Anthropic, resolve the API key from SSM (existing behavior).
+    // When using Bedrock, skip SSM — authentication is via IAM role credentials.
+    if (providerConfig.provider === "anthropic") {
+      const ssmKeyPath =
+        process.env.SSM_ANTHROPIC_API_KEY ??
+        "/serverless-openclaw/secrets/anthropic-api-key";
 
-    await initConfig({ anthropicApiKey: apiKey });
+      const secrets = await resolveSecrets([ssmKeyPath]);
+      apiKey = secrets.get(ssmKeyPath);
+    }
+
+    await initConfig({
+      anthropicApiKey: apiKey,
+      provider: providerConfig.provider,
+      awsRegion: process.env.AWS_REGION,
+    });
     initialized = true;
   }
 
@@ -70,7 +84,9 @@ export async function handler(
         sessionFile,
         workspaceDir: "/tmp/workspace",
         message: event.message,
-        model: event.model,
+        model: event.model ?? providerConfig.defaultModel,
+        provider: providerConfig.openclawProvider,
+        api: providerConfig.openclawApi,
         disableTools: event.disableTools,
         channel: event.channel,
       });

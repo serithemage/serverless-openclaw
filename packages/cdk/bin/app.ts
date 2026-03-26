@@ -17,9 +17,11 @@ const app = new cdk.App();
 
 const agentRuntime = process.env.AGENT_RUNTIME ?? "fargate"; // default: backward compatible
 const deployWeb = process.env.DEPLOY_WEB !== "false"; // default: true (deploy web)
+const aiProvider = process.env.AI_PROVIDER;
+const aiModel = process.env.AI_MODEL;
 
 // Secrets (SSM SecureString parameters)
-const secrets = new SecretsStack(app, "SecretsStack");
+const secrets = new SecretsStack(app, "SecretsStack", { aiProvider });
 
 // Step 1-2: Network & Storage — skip NetworkStack when AGENT_RUNTIME=lambda
 let network: NetworkStack | undefined;
@@ -46,6 +48,8 @@ if (agentRuntime !== "lambda") {
     ecrRepository: storage.ecrRepository,
     fargateCpu: process.env.FARGATE_CPU ? Number(process.env.FARGATE_CPU) : undefined,
     fargateMemory: process.env.FARGATE_MEMORY ? Number(process.env.FARGATE_MEMORY) : undefined,
+    aiProvider,
+    aiModel,
   });
   compute.addDependency(secrets);
 }
@@ -56,6 +60,8 @@ if (agentRuntime !== "fargate") {
   lambdaAgent = new LambdaAgentStack(app, "LambdaAgentStack", {
     dataBucket: storage.dataBucket,
     taskStateTable: storage.taskStateTable,
+    aiProvider,
+    aiModel,
   });
   lambdaAgent.addDependency(secrets);
 }

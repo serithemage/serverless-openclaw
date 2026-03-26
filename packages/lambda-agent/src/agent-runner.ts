@@ -28,6 +28,8 @@ interface RunAgentParams {
   workspaceDir: string;
   message: string;
   model?: string;
+  provider?: string;
+  api?: string;
   disableTools?: boolean;
   channel: "web" | "telegram";
   onPartialReply?: (delta: string) => void;
@@ -57,12 +59,12 @@ interface AgentResult {
 export async function runAgent(params: RunAgentParams): Promise<AgentResult> {
   const runEmbeddedPiAgent = await loadRunEmbeddedPiAgent();
 
-  const result = await runEmbeddedPiAgent({
+  const callParams: Record<string, unknown> = {
     sessionId: params.sessionId,
     sessionFile: params.sessionFile,
     workspaceDir: params.workspaceDir,
     prompt: params.message,
-    provider: "anthropic",
+    provider: params.provider ?? "anthropic",
     model: params.model ?? "claude-sonnet-4-20250514",
     disableTools: params.disableTools ?? false,
     messageChannel: params.channel === "telegram" ? "telegram" : "webchat",
@@ -72,7 +74,13 @@ export async function runAgent(params: RunAgentParams): Promise<AgentResult> {
     onPartialReply: params.onPartialReply
       ? (text: string) => params.onPartialReply!(text)
       : undefined,
-  });
+  };
+
+  if (params.api) {
+    callParams.api = params.api;
+  }
+
+  const result = await runEmbeddedPiAgent(callParams);
 
   return result as AgentResult;
 }

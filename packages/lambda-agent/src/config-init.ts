@@ -1,9 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { AiProvider } from "@serverless-openclaw/shared";
 import type { ConfigInitResult } from "./types.js";
 
 interface InitConfigOptions {
   anthropicApiKey?: string;
+  provider?: AiProvider;
+  awsRegion?: string;
 }
 
 /**
@@ -24,17 +27,21 @@ export async function initConfig(
 
   // Write minimal config optimized for Lambda execution:
   // - gateway.mode: "local" — no WS server needed
-  // - models.bedrockDiscovery.enabled: false — skip Bedrock ListFoundationModels
-  //   (saves ~30s per cold start; we only use Anthropic direct API)
+  // - models.bedrockDiscovery: enabled only when using Bedrock provider
   const configPath = path.join(configDir, "openclaw.json");
+  const isBedrock = options?.provider === "bedrock";
+  const bedrockDiscovery = isBedrock
+    ? { enabled: true, region: options.awsRegion }
+    : { enabled: false };
   const config = {
     gateway: { mode: "local" },
-    models: { bedrockDiscovery: { enabled: false } },
+    models: { bedrockDiscovery },
   };
   fs.writeFileSync(configPath, JSON.stringify(config), "utf-8");
 
   // Set API key via environment variable (OpenClaw reads from env)
-  if (options?.anthropicApiKey) {
+  // Skip when using Bedrock — it authenticates via IAM role credentials
+  if (!isBedrock && options?.anthropicApiKey) {
     process.env.ANTHROPIC_API_KEY = options.anthropicApiKey;
   }
 

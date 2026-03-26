@@ -25,6 +25,8 @@ export interface ComputeStackProps extends cdk.StackProps {
   fargateCpu?: number;
   /** Fargate memory in MiB. Must be compatible with CPU. Default: 2048 */
   fargateMemory?: number;
+  aiProvider?: string;
+  aiModel?: string;
 }
 
 export class ComputeStack extends cdk.Stack {
@@ -44,10 +46,12 @@ export class ComputeStack extends cdk.Stack {
       this, "OpenclawGatewayToken",
       { parameterName: SSM_SECRETS.OPENCLAW_GATEWAY_TOKEN },
     );
-    const anthropicApiKey = ssm.StringParameter.fromSecureStringParameterAttributes(
-      this, "AnthropicApiKey",
-      { parameterName: SSM_SECRETS.ANTHROPIC_API_KEY },
-    );
+    const anthropicApiKey = props.aiProvider !== "bedrock"
+      ? ssm.StringParameter.fromSecureStringParameterAttributes(
+          this, "AnthropicApiKey",
+          { parameterName: SSM_SECRETS.ANTHROPIC_API_KEY },
+        )
+      : undefined;
     const telegramBotToken = ssm.StringParameter.fromSecureStringParameterAttributes(
       this, "TelegramBotToken",
       { parameterName: SSM_SECRETS.TELEGRAM_BOT_TOKEN },
@@ -91,11 +95,14 @@ export class ComputeStack extends cdk.Stack {
         DATA_BUCKET: props.dataBucket.bucketName,
         BRIDGE_PORT: String(BRIDGE_PORT),
         METRICS_ENABLED: "true",
+        AI_PROVIDER: props.aiProvider ?? "anthropic",
+        ...(props.aiModel ? { AI_MODEL: props.aiModel } : {}),
+        AWS_REGION: this.region,
       },
       secrets: {
         BRIDGE_AUTH_TOKEN: ecs.Secret.fromSsmParameter(bridgeAuthToken),
         OPENCLAW_GATEWAY_TOKEN: ecs.Secret.fromSsmParameter(openclawGatewayToken),
-        ANTHROPIC_API_KEY: ecs.Secret.fromSsmParameter(anthropicApiKey),
+        ...(anthropicApiKey ? { ANTHROPIC_API_KEY: ecs.Secret.fromSsmParameter(anthropicApiKey) } : {}),
         TELEGRAM_BOT_TOKEN: ecs.Secret.fromSsmParameter(telegramBotToken),
       },
       logging: ecs.LogDrivers.awsLogs({
@@ -150,6 +157,18 @@ export class ComputeStack extends cdk.Stack {
     this.taskRole.addToPrincipalPolicy(
       new iam.PolicyStatement({
         actions: ["execute-api:ManageConnections"],
+        resources: ["*"],
+      }),
+    );
+
+    // IAM — Bedrock (always provisioned; IAM policies cost nothing)
+    this.taskRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:ListFoundationModels",
+        ],
         resources: ["*"],
       }),
     );
