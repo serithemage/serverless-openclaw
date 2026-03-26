@@ -27,15 +27,12 @@ export async function initConfig(
 
   // Write minimal config optimized for Lambda execution:
   // - gateway.mode: "local" — no WS server needed
-  // - models.bedrockDiscovery: enabled only when using Bedrock provider
+  // - models.bedrockDiscovery: always disabled — model selection is explicit via resolveBedrockModel()
   const configPath = path.join(configDir, "openclaw.json");
   const isBedrock = options?.provider === "bedrock";
-  const bedrockDiscovery = isBedrock
-    ? { enabled: true, region: options.awsRegion }
-    : { enabled: false };
   const config = {
     gateway: { mode: "local" },
-    models: { bedrockDiscovery },
+    models: { bedrockDiscovery: { enabled: false } },
   };
   fs.writeFileSync(configPath, JSON.stringify(config), "utf-8");
 

@@ -457,7 +457,20 @@ By default the system uses Anthropic (requires `AnthropicApiKey` in SecretsStack
 
 **Default models:**
 - Anthropic: `claude-sonnet-4-20250514`
-- Bedrock: `anthropic.claude-sonnet-4-20250514-v1:0`
+- Bedrock: region-aware (see table below)
+
+**Bedrock model selection — Cross-Region Inference (CRIS):**
+
+The Bedrock model ID is derived automatically from `AWS_REGION` at runtime. Bedrock requires a geographic prefix to route requests within a compliance boundary:
+
+| AWS Regions | Model ID used |
+|-------------|---------------|
+| `eu-*` | `eu.anthropic.claude-sonnet-4-20250514-v1:0` |
+| `us-*`, `ca-*` | `us.anthropic.claude-sonnet-4-20250514-v1:0` |
+| `ap-*` | `apac.anthropic.claude-sonnet-4-20250514-v1:0` |
+| All other regions | `anthropic.claude-sonnet-4-20250514-v1:0` (no prefix) |
+
+Set `AI_MODEL` to override automatic resolution (you are responsible for using the correct format). `bedrockDiscovery` is always disabled — model selection is explicit via `resolveBedrockModel()`.
 
 ### Switching to Bedrock
 
