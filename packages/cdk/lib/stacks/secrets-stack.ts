@@ -12,11 +12,20 @@ const SECRET_PARAMS = [
   { id: "TelegramWebhookSecret", path: SSM_SECRETS.TELEGRAM_WEBHOOK_SECRET, desc: "Telegram webhook secret" },
 ] as const;
 
+export interface SecretsStackProps extends cdk.StackProps {
+  aiProvider?: string;
+}
+
 export class SecretsStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: SecretsStackProps) {
     super(scope, id, props);
 
+    const isBedrock = props?.aiProvider === "bedrock";
+
     for (const { id: paramId, path, desc } of SECRET_PARAMS) {
+      if (isBedrock && paramId === "AnthropicApiKey") {
+        continue;
+      }
       const cfnParam = new cdk.CfnParameter(this, paramId, {
         type: "String",
         noEcho: true,

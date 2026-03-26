@@ -1,8 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { GATEWAY_PORT } from "@serverless-openclaw/shared";
+import type { AiProvider } from "@serverless-openclaw/shared";
 
 interface PatchOptions {
   llmModel?: string;
+  aiProvider?: AiProvider;
+  awsRegion?: string;
 }
 
 export function patchConfig(configPath: string, options?: PatchOptions): void {
@@ -25,6 +28,28 @@ export function patchConfig(configPath: string, options?: PatchOptions): void {
   delete config.llm.apiKey;
   if (options?.llmModel) {
     config.llm.model = options.llmModel;
+  }
+
+  if (options?.aiProvider === "bedrock") {
+    // Configure LLM for Bedrock
+    config.llm.provider = "amazon-bedrock";
+    config.llm.api = "bedrock-converse-stream";
+    delete config.llm.apiKey;
+
+    // Enable Bedrock model discovery
+    config.models = {
+      ...config.models,
+      bedrockDiscovery: { enabled: true, region: options.awsRegion },
+    };
+
+    // OpenClaw EC2/Fargate workaround — signal that credentials are available via SDK chain
+    process.env.AWS_PROFILE = "default";
+  } else {
+    // Anthropic or unset — disable Bedrock discovery
+    config.models = {
+      ...config.models,
+      bedrockDiscovery: { enabled: false },
+    };
   }
 
   writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");

@@ -12,6 +12,8 @@ import { SSM_PARAMS, SSM_SECRETS } from "./ssm-params.js";
 export interface LambdaAgentStackProps extends cdk.StackProps {
   dataBucket: s3.IBucket;
   taskStateTable: dynamodb.ITable;
+  aiProvider?: string;
+  aiModel?: string;
 }
 
 export class LambdaAgentStack extends cdk.Stack {
@@ -49,6 +51,8 @@ export class LambdaAgentStack extends cdk.Stack {
         HOME: "/tmp",
         SSM_ANTHROPIC_API_KEY: SSM_SECRETS.ANTHROPIC_API_KEY,
         SESSION_BUCKET: props.dataBucket.bucketName,
+        AI_PROVIDER: props.aiProvider ?? "anthropic",
+        ...(props.aiModel ? { AI_MODEL: props.aiModel } : {}),
       },
     });
 
@@ -79,6 +83,18 @@ export class LambdaAgentStack extends cdk.Stack {
     this.agentFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["cloudwatch:PutMetricData"],
+        resources: ["*"],
+      }),
+    );
+
+    // IAM — Bedrock (always provisioned; IAM policies cost nothing)
+    this.agentFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:ListFoundationModels",
+        ],
         resources: ["*"],
       }),
     );
