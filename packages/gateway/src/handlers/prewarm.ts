@@ -34,6 +34,12 @@ async function emitMetric(name: string, dimensions?: Array<{ Name: string; Value
 }
 
 export async function handler(): Promise<void> {
+  const agentRuntime = process.env.AGENT_RUNTIME ?? "fargate";
+  if (agentRuntime === "lambda") {
+    console.log("[prewarm] AGENT_RUNTIME=lambda, skipping Fargate prewarm");
+    return;
+  }
+
   const durationMin = parseInt(process.env.PREWARM_DURATION || "", 10) || DEFAULT_PREWARM_DURATION_MIN;
   const prewarmUntil = Date.now() + durationMin * 60 * 1000;
 

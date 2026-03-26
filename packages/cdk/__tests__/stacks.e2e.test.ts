@@ -376,8 +376,7 @@ describe("ApiStack with PREWARM_SCHEDULE", () => {
         pendingMessagesTable: storage.pendingMessagesTable,
         userPool: auth.userPool,
         userPoolClient: auth.userPoolClient,
-        cluster: compute.cluster,
-        taskDefinition: compute.taskDefinition,
+        agentRuntime: "fargate",
       });
 
       const template = Template.fromStack(api);

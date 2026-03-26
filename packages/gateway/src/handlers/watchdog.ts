@@ -58,6 +58,12 @@ async function getActiveTimeout(): Promise<number> {
 }
 
 export async function handler(): Promise<void> {
+  const agentRuntime = process.env.AGENT_RUNTIME ?? "fargate";
+  if (agentRuntime === "lambda") {
+    console.log("[watchdog] AGENT_RUNTIME=lambda, skipping Fargate watchdog");
+    return;
+  }
+
   const cluster = process.env.ECS_CLUSTER_ARN ?? "";
   const now = Date.now();
   const timeout = await getActiveTimeout();
