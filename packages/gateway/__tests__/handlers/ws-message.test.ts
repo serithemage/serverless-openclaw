@@ -25,6 +25,10 @@ vi.mock("../../src/services/container.js", () => ({
   startTask: vi.fn(),
 }));
 
+vi.mock("../../src/services/lambda-agent.js", () => ({
+  invokeLambdaAgent: vi.fn(),
+}));
+
 vi.mock("../../src/services/secrets.js", () => ({
   resolveSecrets: vi.fn().mockResolvedValue(
     new Map([
@@ -126,6 +130,33 @@ describe("ws-message handler", () => {
     const result = await handler(event);
 
     expect(result.statusCode).toBe(400);
+  });
+
+  it("should pass agentRuntime and Lambda deps to routeMessage", async () => {
+    vi.stubEnv("AGENT_RUNTIME", "both");
+    vi.stubEnv("LAMBDA_AGENT_FUNCTION_ARN", "arn:aws:lambda:us-east-1:123:function:agent");
+
+    const event = makeEvent({ action: "sendMessage", message: "hello" });
+    await handler(event);
+
+    const routeCall = mockRouteMessage.mock.calls[0][0];
+    expect(routeCall.agentRuntime).toBe("both");
+    expect(routeCall.lambdaAgentFunctionArn).toBe("arn:aws:lambda:us-east-1:123:function:agent");
+    expect(routeCall.invokeLambdaAgent).toBeDefined();
+    expect(routeCall.onColdStartPreview).toBeDefined();
+  });
+
+  it("should default agentRuntime to fargate when env not set", async () => {
+    delete process.env.AGENT_RUNTIME;
+    delete process.env.LAMBDA_AGENT_FUNCTION_ARN;
+
+    const event = makeEvent({ action: "sendMessage", message: "hello" });
+    await handler(event);
+
+    const routeCall = mockRouteMessage.mock.calls[0][0];
+    expect(routeCall.agentRuntime).toBe("fargate");
+    expect(routeCall.invokeLambdaAgent).toBeUndefined();
+    expect(routeCall.lambdaAgentFunctionArn).toBeUndefined();
   });
 
   it("should return 403 when connection not found", async () => {

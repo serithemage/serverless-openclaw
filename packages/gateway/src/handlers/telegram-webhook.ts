@@ -150,6 +150,7 @@ export async function handler(event: {
   }
 
   console.log("[telegram] routing message", { userId, channel: "telegram", agentRuntime });
+  const lambdaAgentFunctionArn = process.env.LAMBDA_AGENT_FUNCTION_ARN ?? "";
   await routeMessage({
     userId,
     message: text,
@@ -172,8 +173,8 @@ export async function handler(event: {
       environment: taskEnv,
     },
     agentRuntime,
-    invokeLambdaAgent,
-    lambdaAgentFunctionArn: process.env.LAMBDA_AGENT_FUNCTION_ARN ?? "",
+    invokeLambdaAgent: lambdaAgentFunctionArn ? invokeLambdaAgent : undefined,
+    lambdaAgentFunctionArn: lambdaAgentFunctionArn || undefined,
     onLambdaResponse: async (payloads) => {
       for (const payload of payloads ?? []) {
         if (payload.text && botToken) {
@@ -181,6 +182,16 @@ export async function handler(event: {
         }
       }
     },
+    onColdStartPreview: botToken
+      ? async (previewText) => {
+          await sendTelegramMessage(
+            fetch as never,
+            botToken,
+            connectionId,
+            `💡 ${previewText}`,
+          );
+        }
+      : undefined,
   });
 
   console.log("[telegram] message routed successfully", { userId });

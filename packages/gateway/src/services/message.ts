@@ -74,6 +74,7 @@ export interface RouteDeps {
   sessionId?: string;
   /** Called with agent payloads after a successful lambda invocation — caller is responsible for delivery */
   onLambdaResponse?: (payloads: LambdaAgentResponse["payloads"]) => Promise<void>;
+  onColdStartPreview?: (previewText: string) => Promise<void>;
 }
 
 export type RouteResult = "sent" | "queued" | "started" | "lambda";
@@ -155,6 +156,34 @@ async function routeFargate(deps: RouteDeps, taskState: TaskStateItem | null): P
   return "queued";
 }
 
+/**
+ * Invoke Lambda with disableTools=true for a quick contextual preview
+ * while Fargate container cold starts. Non-blocking (fire-and-forget).
+ */
+async function invokeColdStartPreview(deps: RouteDeps): Promise<void> {
+  if (!deps.invokeLambdaAgent || !deps.lambdaAgentFunctionArn || !deps.onColdStartPreview) return;
+
+  const response = await deps.invokeLambdaAgent({
+    functionArn: deps.lambdaAgentFunctionArn,
+    userId: deps.userId,
+    sessionId: deps.sessionId ?? `session-${deps.userId}`,
+    message: deps.message,
+    channel: deps.channel,
+    connectionId: deps.connectionId,
+    disableTools: true,
+  });
+
+  if (response.success && response.payloads?.length) {
+    const text = response.payloads
+      .filter((p) => p.text && !p.isError)
+      .map((p) => p.text)
+      .join("\n");
+    if (text) {
+      await deps.onColdStartPreview(text);
+    }
+  }
+}
+
 export async function routeMessage(deps: RouteDeps): Promise<RouteResult> {
   // Phase 2: Lambda agent path
   if (
@@ -196,7 +225,21 @@ export async function routeMessage(deps: RouteDeps): Promise<RouteResult> {
     if (decision === "fargate-new") {
       // Strip hint and queue to Fargate (new container)
       const strippedDeps = { ...deps, message: stripRouteHint(deps.message) };
-      return routeFargate(strippedDeps, taskState);
+      const result = await routeFargate(strippedDeps, taskState);
+
+      // Cold start preview: invoke Lambda for quick context while Fargate starts
+      if (
+        (result === "started" || result === "queued") &&
+        deps.onColdStartPreview !== undefined &&
+        deps.invokeLambdaAgent !== undefined &&
+        deps.lambdaAgentFunctionArn
+      ) {
+        invokeColdStartPreview(deps).catch((err) =>
+          console.warn("Cold start preview failed (non-fatal):", err),
+        );
+      }
+
+      return result;
     }
 
     // decision === "lambda": try Lambda, fall back to Fargate on failure

@@ -484,6 +484,77 @@ describe("message service", () => {
       expect(deps.savePendingMessage).toHaveBeenCalled();
     });
 
+    it("should invoke cold start preview when AGENT_RUNTIME=both and fargate-new cold starts", async () => {
+      const mockInvokeLambda = vi.fn().mockResolvedValue({
+        success: true,
+        payloads: [{ text: "Here's some context while you wait..." }],
+      });
+      const mockPreviewCallback = vi.fn();
+      const deps = makeDeps({
+        agentRuntime: "both",
+        invokeLambdaAgent: mockInvokeLambda,
+        lambdaAgentFunctionArn: "arn:aws:lambda:us-east-1:123:function:agent",
+        message: "/heavy do something complex",
+        getTaskState: vi.fn().mockResolvedValue(null),
+        onColdStartPreview: mockPreviewCallback,
+      });
+
+      const result = await routeMessage(deps);
+
+      expect(result).toBe("started");
+      expect(deps.startTask).toHaveBeenCalled();
+      // Preview is fire-and-forget, wait for it to settle
+      await new Promise((r) => setTimeout(r, 10));
+      expect(mockInvokeLambda).toHaveBeenCalledWith(
+        expect.objectContaining({
+          disableTools: true,
+          message: "/heavy do something complex",
+        }),
+      );
+      expect(mockPreviewCallback).toHaveBeenCalledWith(
+        "Here's some context while you wait...",
+      );
+    });
+
+    it("should not fail routing when cold start preview fails", async () => {
+      const mockInvokeLambda = vi.fn()
+        .mockResolvedValueOnce({ success: false, error: "preview failed" }); // preview
+      const mockPreviewCallback = vi.fn();
+      const deps = makeDeps({
+        agentRuntime: "both",
+        invokeLambdaAgent: mockInvokeLambda,
+        lambdaAgentFunctionArn: "arn:aws:lambda:us-east-1:123:function:agent",
+        message: "/fargate analyze data",
+        getTaskState: vi.fn().mockResolvedValue(null),
+        onColdStartPreview: mockPreviewCallback,
+      });
+
+      const result = await routeMessage(deps);
+
+      expect(result).toBe("started");
+      await new Promise((r) => setTimeout(r, 10));
+      expect(mockPreviewCallback).not.toHaveBeenCalled();
+    });
+
+    it("should not invoke preview when onColdStartPreview callback is not provided", async () => {
+      const mockInvokeLambda = vi.fn();
+      const deps = makeDeps({
+        agentRuntime: "both",
+        invokeLambdaAgent: mockInvokeLambda,
+        lambdaAgentFunctionArn: "arn:aws:lambda:us-east-1:123:function:agent",
+        message: "/heavy build report",
+        getTaskState: vi.fn().mockResolvedValue(null),
+        // no onColdStartPreview
+      });
+
+      const result = await routeMessage(deps);
+
+      expect(result).toBe("started");
+      await new Promise((r) => setTimeout(r, 10));
+      // Lambda should NOT have been called for preview (only for routing)
+      expect(mockInvokeLambda).not.toHaveBeenCalled();
+    });
+
     it("should fallback to Fargate when AGENT_RUNTIME=both and Lambda fails", async () => {
       const mockInvokeLambda = vi.fn().mockResolvedValue({
         success: false,

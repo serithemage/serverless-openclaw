@@ -27,6 +27,10 @@ vi.mock("../../src/services/container.js", () => ({
   startTask: vi.fn(),
 }));
 
+vi.mock("../../src/services/lambda-agent.js", () => ({
+  invokeLambdaAgent: vi.fn(),
+}));
+
 vi.mock("../../src/services/identity.js", () => ({
   resolveUserId: (...args: unknown[]) => mockResolveUserId(...args),
   verifyOtpAndLink: (...args: unknown[]) => mockVerifyOtpAndLink(...args),
@@ -325,6 +329,55 @@ describe("telegram-webhook handler", () => {
       expect.stringContaining("Web UI"),
     );
     expect(mockRouteMessage).not.toHaveBeenCalled();
+  });
+
+  it("should pass agentRuntime and Lambda deps to routeMessage", async () => {
+    vi.stubEnv("AGENT_RUNTIME", "both");
+    vi.stubEnv("LAMBDA_AGENT_FUNCTION_ARN", "arn:aws:lambda:us-east-1:123:function:agent");
+    mockGetTaskState.mockResolvedValue({ status: "Running", publicIp: "1.2.3.4" });
+
+    const event = makeEvent(
+      {
+        message: {
+          chat: { id: 12345 },
+          from: { id: 67890 },
+          text: "hello",
+        },
+      },
+      "my-secret",
+    );
+
+    await handler(event);
+
+    const routeCall = mockRouteMessage.mock.calls[0][0];
+    expect(routeCall.agentRuntime).toBe("both");
+    expect(routeCall.lambdaAgentFunctionArn).toBe("arn:aws:lambda:us-east-1:123:function:agent");
+    expect(routeCall.invokeLambdaAgent).toBeDefined();
+    expect(routeCall.onColdStartPreview).toBeDefined();
+  });
+
+  it("should default agentRuntime to fargate when env not set", async () => {
+    delete process.env.AGENT_RUNTIME;
+    delete process.env.LAMBDA_AGENT_FUNCTION_ARN;
+    mockGetTaskState.mockResolvedValue({ status: "Running", publicIp: "1.2.3.4" });
+
+    const event = makeEvent(
+      {
+        message: {
+          chat: { id: 12345 },
+          from: { id: 67890 },
+          text: "hello",
+        },
+      },
+      "my-secret",
+    );
+
+    await handler(event);
+
+    const routeCall = mockRouteMessage.mock.calls[0][0];
+    expect(routeCall.agentRuntime).toBe("fargate");
+    expect(routeCall.invokeLambdaAgent).toBeUndefined();
+    expect(routeCall.lambdaAgentFunctionArn).toBeUndefined();
   });
 
   it("should resolve userId for linked telegram user", async () => {

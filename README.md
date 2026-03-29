@@ -215,6 +215,16 @@ npm run test:e2e     # E2E tests (CDK synth, 35 tests)
 
 AWS deployment: [Deployment Guide](docs/deployment.md) | Local development details: [Development Guide](docs/development.md)
 
+## Tutorial
+
+Follow the full journey of building this project through conversational AI coding:
+
+**[Vibe Coding Tutorial](docs/vibe-coding-tutorial/README.md)** — 7 chapters covering idea → infrastructure → deployment → optimization → hybrid architecture
+
+| Chapters | Time | Cost | Key Topics |
+|----------|------|------|------------|
+| 7 + appendix | ~29 hours | ~$0.25 | CDK stacks, cold start optimization, Lambda migration, smart routing, release automation |
+
 ## Documentation
 
 - [PRD (Product Requirements Document)](docs/PRD.md)

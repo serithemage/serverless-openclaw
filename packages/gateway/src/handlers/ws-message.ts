@@ -74,11 +74,10 @@ export async function handler(event: {
   if (msg.action === "sendMessage") {
     const agentRuntime = (process.env.AGENT_RUNTIME as "lambda" | "fargate" | "both") ?? "fargate";
     const secrets = await resolveSecrets([process.env.SSM_BRIDGE_AUTH_TOKEN!]);
-
     if (agentRuntime === "lambda" || agentRuntime === "both") {
       await pushToConnection(connectionId, { type: "status", status: "running" });
     }
-
+    const lambdaAgentFunctionArn = process.env.LAMBDA_AGENT_FUNCTION_ARN ?? "";
     const result = await routeMessage({
       userId,
       message: msg.message ?? "",
@@ -104,8 +103,8 @@ export async function handler(event: {
         ],
       },
       agentRuntime,
-      invokeLambdaAgent,
-      lambdaAgentFunctionArn: process.env.LAMBDA_AGENT_FUNCTION_ARN ?? "",
+      invokeLambdaAgent: lambdaAgentFunctionArn ? invokeLambdaAgent : undefined,
+      lambdaAgentFunctionArn: lambdaAgentFunctionArn || undefined,
       onLambdaResponse: async (payloads) => {
         for (const payload of payloads ?? []) {
           if (payload.text) {
@@ -113,6 +112,12 @@ export async function handler(event: {
           }
         }
         await pushToConnection(connectionId, { type: "status", status: "Idle" });
+      },
+      onColdStartPreview: async (previewText) => {
+        await pushToConnection(connectionId, {
+          type: "message",
+          content: previewText,
+        });
       },
     });
 
