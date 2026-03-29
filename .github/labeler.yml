@@ -1,0 +1,60 @@
+"area: gateway":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/gateway/**"
+"area: container":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/container/**"
+"area: lambda-agent":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/lambda-agent/**"
+"area: cdk":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/cdk/**"
+"area: web":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/web/**"
+"area: shared":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/shared/**"
+"area: docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "README.md"
+          - "CLAUDE.md"
+"area: tests":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "__tests__/**"
+          - "packages/**/__tests__/**"
+"area: infra":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "scripts/**"
+          - "Makefile"
+          - "package.json"
+          - "package-lock.json"
+          - "tsconfig*.json"
+"area: security":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/gateway/src/services/secrets.ts"
+          - "packages/lambda-agent/src/secrets.ts"
+          - "packages/cdk/lib/stacks/auth-stack.ts"
+          - "packages/cdk/lib/stacks/secrets-stack.ts"
+          - ".env.example"
+"area: release":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/deploy-image.yml"
+          - "scripts/deploy-image.sh"
+          - "packages/container/Dockerfile"
+          - "packages/lambda-agent/Dockerfile"
+          - "docs/deployment.md"

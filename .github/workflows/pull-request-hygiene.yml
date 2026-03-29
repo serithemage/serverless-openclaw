@@ -1,0 +1,189 @@
+name: Pull Request Hygiene
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure hygiene labels exist
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [
+              ["size: XS", "c2e0c6", "Tiny pull request"],
+              ["size: S", "7cc576", "Small pull request"],
+              ["size: M", "fbca04", "Medium pull request"],
+              ["size: L", "d93f0b", "Large pull request"],
+              ["size: XL", "b60205", "Very large pull request"],
+              ["needs-split", "b60205", "PR should be split into smaller concerns"],
+              ["ci-only", "5319e7", "PR only changes CI or workflow code"],
+              ["needs-template", "d93f0b", "PR body is missing required evidence sections"],
+            ];
+
+            for (const [name, color, description] of labels) {
+              try {
+                await github.rest.issues.getLabel({ ...context.repo, name });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+                await github.rest.issues.createLabel({
+                  ...context.repo,
+                  name,
+                  color,
+                  description,
+                });
+              }
+            }
+
+      - name: Apply size and hygiene checks
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr = context.payload.pull_request;
+            const pull_number = pr.number;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            });
+
+            const changedFiles = files.length;
+            const changedLines = pr.additions + pr.deletions;
+            const marker = "<!-- gatekeeping-hygiene -->";
+            const body = pr.body || "";
+            const requiredSections = [
+              "## What Changed",
+              "## What Did Not Change",
+              "## Security Impact",
+              "## Evidence",
+              "## Human Verification",
+            ];
+
+            let sizeLabel = "size: XS";
+            if (changedFiles > 25 || changedLines > 1200) {
+              sizeLabel = "size: XL";
+            } else if (changedFiles > 15 || changedLines > 600) {
+              sizeLabel = "size: L";
+            } else if (changedFiles > 8 || changedLines > 250) {
+              sizeLabel = "size: M";
+            } else if (changedFiles > 3 || changedLines > 75) {
+              sizeLabel = "size: S";
+            }
+
+            const desiredLabels = [sizeLabel];
+
+            if (changedFiles > 25 || changedLines > 1200) {
+              desiredLabels.push("needs-split");
+            }
+
+            if (files.length > 0 && files.every((file) => file.filename.startsWith(".github/workflows/"))) {
+              desiredLabels.push("ci-only");
+            }
+
+            if (!requiredSections.every((section) => body.includes(section))) {
+              desiredLabels.push("needs-template");
+            }
+
+            const currentLabels = pr.labels.map((label) => label.name);
+            const managedLabels = [
+              "size: XS",
+              "size: S",
+              "size: M",
+              "size: L",
+              "size: XL",
+              "needs-split",
+              "ci-only",
+              "needs-template",
+            ];
+
+            const labelsToAdd = desiredLabels.filter((label) => !currentLabels.includes(label));
+            const labelsToRemove = managedLabels.filter(
+              (label) => currentLabels.includes(label) && !desiredLabels.includes(label),
+            );
+
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pull_number,
+                labels: labelsToAdd,
+              });
+            }
+
+            for (const label of labelsToRemove) {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: pull_number,
+                name: label,
+              }).catch((error) => {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              });
+            }
+
+            const notes = [];
+            if (desiredLabels.includes("needs-split")) {
+              notes.push("- This PR is large enough that review quality will improve if you split it into smaller concerns.");
+            }
+            if (desiredLabels.includes("ci-only")) {
+              notes.push("- This PR only changes workflow automation. Include rollback and verification evidence in the PR body.");
+            }
+            if (desiredLabels.includes("needs-template")) {
+              notes.push("- The PR body is missing one or more required sections from the repository template.");
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: pull_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            const commentBody = notes.length === 0
+              ? null
+              : `${marker}\n\nGatekeeping summary:\n${notes.join("\n")}`;
+
+            if (!commentBody && existing) {
+              await github.rest.issues.deleteComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+              });
+              return;
+            }
+
+            if (!commentBody) {
+              return;
+            }
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body: commentBody,
+              });
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: pull_number,
+              body: commentBody,
+            });

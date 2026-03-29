@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Agent Compatibility
+
+This repository supports both Claude Code and Codex.
+
+- Canonical skill source: `.agents/skills/`
+- Generated mirrors: `.claude/skills/` and `.codex/skills/`
+- When updating a skill, edit `.agents/skills/` first and then run `npm run skills:sync`
+- Use `npm run skills:check` to verify the Claude/Codex mirrors are still identical to the canonical source
+- Keep `CLAUDE.md` and `AGENTS.md` aligned when agent-facing rules or shared workflows change
+- Prefer agent-neutral instructions. If a workflow can use subagents, make that optional and include a sequential fallback
+
 ## Project
 
 Serverless OpenClaw — Runs the OpenClaw AI agent on-demand on AWS serverless infrastructure. Web UI + Telegram interface. Cost target ~$1/month.
@@ -14,6 +25,9 @@ npm run lint           # eslint "packages/**/*.ts"
 npm run format         # prettier
 npm run test           # vitest run (unit tests, excludes *.e2e.test.ts)
 npm run test:e2e       # vitest e2e (CDK synth E2E tests)
+npm run test:integration  # vitest integration tests
+npm run skills:sync    # sync shared skills into Claude/Codex mirrors
+npm run skills:check   # verify shared skill mirrors are in sync
 
 # Single test file
 npx vitest run packages/gateway/__tests__/handlers/ws-connect.test.ts
@@ -46,7 +60,7 @@ TypeScript: ES2022, Node16 module resolution, strict, composite builds. `.js` ex
 packages/
 ├── shared/        # Types + constants (TABLE_NAMES, BRIDGE_PORT, key prefixes)
 ├── cdk/           # CDK stacks (lib/stacks/)
-├── gateway/       # 7 Lambda handlers (ws-connect/message/disconnect, telegram-webhook, api-handler, watchdog, prewarm)
+├── gateway/       # 7 Lambda handlers, 10 services (ws-connect/message/disconnect, telegram-webhook, api-handler, watchdog, prewarm)
 ├── container/     # Fargate container (Bridge server + OpenClaw JSON-RPC client)
 ├── lambda-agent/  # Lambda Container Image (runs OpenClaw runEmbeddedPiAgent() directly)
 └── web/           # React SPA (Vite, amazon-cognito-identity-js for auth)
@@ -60,7 +74,7 @@ packages/
 
 **Cross-stack decoupling:** ComputeStack writes TaskDefinition/Role ARNs to SSM Parameter Store (`packages/cdk/lib/stacks/ssm-params.ts`), LambdaAgentStack writes Lambda function ARN to SSM, ApiStack reads from SSM. No CloudFormation cross-stack exports.
 
-**AGENT_RUNTIME feature flag:** `fargate` (default) | `lambda` | `both`. Controls which compute stacks are deployed and which routing path `routeMessage` uses. When `both`: Smart routing via `classifyRoute()` — Lambda default, Fargate reuse when running, `/heavy`/`/fargate` hint for Fargate, Lambda failure fallback to Fargate.
+**AGENT_RUNTIME feature flag:** `fargate` (default) | `lambda` | `both`. Controls which compute stacks are deployed and which routing path `routeMessage` uses. When `both`: Smart routing via `classifyRoute()` in `packages/gateway/src/services/route-classifier.ts` — priority order: 1) Reuse running Fargate (don't waste), 2) User hint `/heavy` or `/fargate` → Fargate new, 3) Default → Lambda, 4) Lambda failure → Fargate fallback. Cold start preview: when Fargate cold starts via hint, Lambda is invoked in parallel with `disableTools=true` to provide quick interim response.
 
 **AI_PROVIDER feature flag:** `anthropic` (default) | `bedrock`. Controls which AI backend is used. Bedrock uses IAM role credentials (no API key needed). `AI_MODEL` overrides the provider-default model. SecretsStack skips `AnthropicApiKey` when `AI_PROVIDER=bedrock`.
 
@@ -80,13 +94,13 @@ Violating these rules will cause cost spikes or security incidents:
 
 ## DynamoDB Tables (5)
 
-| Table | PK | SK | TTL | GSI |
-|-------|----|----|-----|-----|
-| Conversations | `USER#{userId}` | `CONV#{id}#MSG#{ts}` | `ttl` | — |
-| Settings | `USER#{userId}` | `SETTING#{key}` | — | — |
-| TaskState | `USER#{userId}` | — | `ttl` | — |
-| Connections | `CONN#{connId}` | — | `ttl` | `userId-index` |
-| PendingMessages | `USER#{userId}` | `MSG#{ts}#{uuid}` | `ttl` | — |
+| Table           | PK              | SK                   | TTL   | GSI            |
+| --------------- | --------------- | -------------------- | ----- | -------------- |
+| Conversations   | `USER#{userId}` | `CONV#{id}#MSG#{ts}` | `ttl` | —              |
+| Settings        | `USER#{userId}` | `SETTING#{key}`      | —     | —              |
+| TaskState       | `USER#{userId}` | —                    | `ttl` | —              |
+| Connections     | `CONN#{connId}` | —                    | `ttl` | `userId-index` |
+| PendingMessages | `USER#{userId}` | `MSG#{ts}#{uuid}`    | `ttl` | —              |
 
 Table names use the `TABLE_NAMES` constant from `@serverless-openclaw/shared`.
 
@@ -119,6 +133,11 @@ Table names use the `TABLE_NAMES` constant from `@serverless-openclaw/shared`.
 - **Telegram-Web Identity Linking:** OTP-based linking via Settings table. Web UI generates 6-digit OTP -> Telegram `/link {code}` verifies and creates bilateral link records -> resolveUserId maps telegram userId to cognitoId for container sharing. Unlinking is Web-only (IDOR prevention). REST API: POST /link/generate-otp, GET /link/status, POST /link/unlink (all JWT-authenticated)
 - **HTTP API CORS:** `corsPreflight` required — Web (CloudFront) → API Gateway is cross-origin. `allowOrigins: ["*"]`, `allowHeaders: [Authorization, Content-Type]`
 - **Telegram-only deployment:** `DEPLOY_WEB=false` skips WebStack and the web asset build. Use `make deploy-telegram`. MonitoringStack and ApiStack handle missing WebStack gracefully.
+- **Cold Start Preview (AGENT_RUNTIME=both):** When Fargate hint triggers cold start, Lambda is fire-and-forget invoked with `disableTools=true` for quick ~2-5s interim response. Delivered via `onColdStartPreview` callback in `RouteDeps`. Preview failure is non-fatal.
+- **Unified Session Storage:** Lambda and Fargate share session context via S3 (`sessions/{userId}/{sessionId}.jsonl`), enabling seamless runtime switching without losing conversation history
+- **Telegram-only deployment:** `DEPLOY_WEB=false` skips WebStack and the web asset build. Use `make deploy-telegram`. MonitoringStack and ApiStack handle missing WebStack gracefully.
+- **Cold Start Preview (AGENT_RUNTIME=both):** When Fargate hint triggers cold start, Lambda is fire-and-forget invoked with `disableTools=true` for quick ~2-5s interim response. Delivered via `onColdStartPreview` callback in `RouteDeps`. Preview failure is non-fatal.
+- **Unified Session Storage:** Lambda and Fargate share session context via S3 (`sessions/{userId}/{sessionId}.jsonl`), enabling seamless runtime switching without losing conversation history
 
 ## Phase 1 Progress (10/10 — Complete)
 
@@ -145,3 +164,4 @@ Cold start: 1.35s, Warm: 0.12s (Lambda Duration). Implementation guide: Use `/la
 - `docs/cold-start-optimization.md` — Cold start optimization (Phase 1 complete, Phase 2 complete via Lambda migration)
 - `docs/lambda-migration-plan.md` — Phase 2 Lambda migration plan (architecture, steps, cost analysis)
 - `docs/lambda-migration-journey.md` — Phase 2 migration journey (timeline, obstacles, learnings)
+- `docs/smart-routing-design.md` — Smart routing design (classifyRoute, cold start preview, cost impact)

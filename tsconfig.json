@@ -4,6 +4,7 @@
     { "path": "packages/shared" },
     { "path": "packages/cdk" },
     { "path": "packages/gateway" },
-    { "path": "packages/container" }
+    { "path": "packages/container" },
+    { "path": "packages/lambda-agent" }
   ]
 }

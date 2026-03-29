@@ -1,0 +1,38 @@
+name: Stale
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark stale issues and pull requests
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          days-before-issue-stale: 14
+          days-before-issue-close: 7
+          days-before-pr-stale: 10
+          days-before-pr-close: 5
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: security,no-stale
+          exempt-pr-labels: security,no-stale
+          remove-stale-when-updated: true
+          stale-issue-message: |
+            This issue has been automatically marked as stale due to inactivity.
+            Add an update or fresh reproduction details to keep it open.
+          stale-pr-message: |
+            This pull request has been automatically marked as stale due to inactivity.
+            Add an update or refreshed evidence to keep it open.
+          close-issue-message: |
+            Closing due to inactivity. Re-open with updated reproduction details if the problem still exists.
+          close-pr-message: |
+            Closing due to inactivity. Re-open when the branch is refreshed and the evidence section is up to date.

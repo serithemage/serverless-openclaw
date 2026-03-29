@@ -1,0 +1,57 @@
+name: Labeler
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base repository
+        uses: actions/checkout@v4
+
+      - name: Ensure area labels exist
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [
+              ["area: gateway", "1d76db", "Gateway lambdas and services"],
+              ["area: container", "5319e7", "Container runtime and bridge"],
+              ["area: lambda-agent", "fbca04", "Lambda agent runtime"],
+              ["area: cdk", "0e8a16", "Infrastructure code"],
+              ["area: web", "c5def5", "Web UI"],
+              ["area: shared", "bfd4f2", "Shared contracts and constants"],
+              ["area: docs", "0075ca", "Documentation only"],
+              ["area: tests", "d4c5f9", "Tests or fixtures"],
+              ["area: infra", "6f42c1", "Tooling, workflows, or build plumbing"],
+              ["area: security", "b60205", "Secrets, auth, or sensitive surfaces"],
+              ["area: release", "d93f0b", "Release workflow and deployment surface"],
+            ];
+
+            for (const [name, color, description] of labels) {
+              try {
+                await github.rest.issues.getLabel({ ...context.repo, name });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+                await github.rest.issues.createLabel({
+                  ...context.repo,
+                  name,
+                  color,
+                  description,
+                });
+              }
+            }
+
+      - name: Apply path labels
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml

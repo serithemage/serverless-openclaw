@@ -12,6 +12,7 @@ slides/*.pdf
 
 # Tools
 .omc/
+.omx/
 
 # Environment
 .env

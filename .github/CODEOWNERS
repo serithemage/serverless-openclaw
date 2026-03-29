@@ -1,0 +1,12 @@
+* @serithemage
+
+/.github/CODEOWNERS @serithemage
+/.github/workflows/** @serithemage
+/packages/cdk/** @serithemage
+/packages/gateway/src/services/secrets.ts @serithemage
+/packages/lambda-agent/src/secrets.ts @serithemage
+/packages/container/Dockerfile @serithemage
+/packages/lambda-agent/Dockerfile @serithemage
+/scripts/deploy-image.sh @serithemage
+/docs/deployment.md @serithemage
+/.env.example @serithemage

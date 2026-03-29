@@ -1,10 +1,1 @@
-# Skip hooks for docs-only commits (.md files only)
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
-NON_DOC_FILES=$(echo "$STAGED_FILES" | grep -v '\.md$' || true)
-
-if [ -z "$NON_DOC_FILES" ]; then
-  echo "Docs-only commit — skipping build, lint, and test."
-  exit 0
-fi
-
-npm run build && npm run lint && npm test
+node scripts/pre-commit-gate.mjs

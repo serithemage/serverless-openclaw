@@ -1,0 +1,241 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+      runtime_changed: ${{ steps.scope.outputs.runtime_changed }}
+      web_changed: ${{ steps.scope.outputs.web_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect change scope
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          if [ -z "${BASE:-}" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES="$(git ls-files)"
+          else
+            CHANGED_FILES="$(git diff --name-only "$BASE" HEAD)"
+          fi
+
+          if [ -z "$CHANGED_FILES" ]; then
+            CHANGED_FILES="$(git ls-files)"
+          fi
+
+          docs_only=true
+          runtime_changed=false
+          web_changed=false
+
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+
+            case "$path" in
+              docs/*|README.md|CLAUDE.md|*.md)
+                ;;
+              *)
+                docs_only=false
+                ;;
+            esac
+
+            case "$path" in
+              packages/gateway/*|packages/container/*|packages/lambda-agent/*|packages/cdk/*|packages/shared/*|scripts/*|package.json|package-lock.json|tsconfig*.json|vitest*.ts|.github/workflows/*)
+                runtime_changed=true
+                ;;
+            esac
+
+            case "$path" in
+              packages/web/*|packages/shared/*|package.json|package-lock.json)
+                web_changed=true
+                ;;
+            esac
+          done <<< "$CHANGED_FILES"
+
+          if [ "$docs_only" = true ]; then
+            runtime_changed=false
+            web_changed=false
+          fi
+
+          {
+            echo "docs_only=$docs_only"
+            echo "runtime_changed=$runtime_changed"
+            echo "web_changed=$web_changed"
+          } >> "$GITHUB_OUTPUT"
+
+  security:
+    needs: [preflight]
+    if: needs.preflight.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Scan tracked files for obvious secrets
+        run: npm run check:secrets
+
+  check:
+    needs: [preflight]
+    if: needs.preflight.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unified quality gate
+        env:
+          GATEKEEPING_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: npm run check
+
+  unit-tests:
+    needs: [preflight]
+    if: needs.preflight.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test
+
+  integration-tests:
+    needs: [preflight]
+    if: needs.preflight.outputs.runtime_changed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HTTP_API_URL: ${{ vars.HTTP_API_URL }}
+      WEBSOCKET_URL: ${{ vars.WEBSOCKET_URL }}
+      COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
+      COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID }}
+      TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+      TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration tests when environment is configured
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_vars=(
+            HTTP_API_URL
+            WEBSOCKET_URL
+            COGNITO_USER_POOL_ID
+            COGNITO_CLIENT_ID
+            TEST_USERNAME
+            TEST_PASSWORD
+          )
+
+          missing=0
+          for name in "${required_vars[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Skipping integration tests: missing ${name}"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -eq 1 ]; then
+            exit 0
+          fi
+
+          npm run test:integration
+
+  e2e-tests:
+    needs: [preflight]
+    if: needs.preflight.outputs.docs_only != 'true' && (github.event_name == 'push' || needs.preflight.outputs.runtime_changed == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+  web-build:
+    needs: [preflight]
+    if: needs.preflight.outputs.docs_only != 'true' && (github.event_name == 'push' || needs.preflight.outputs.web_changed == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run web:build

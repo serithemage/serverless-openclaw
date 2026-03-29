@@ -4,29 +4,73 @@ on:
   workflow_dispatch:
     inputs:
       skip-soci:
-        description: 'Skip SOCI index generation'
+        description: "Skip SOCI index generation"
         required: false
         type: boolean
         default: false
       openclaw-version:
-        description: 'OpenClaw version (e.g. 2026.2.9, latest)'
+        description: "OpenClaw version (e.g. 2026.2.9, latest)"
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
 
 permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: deploy-image-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: serverless-openclaw
-  SOCI_VERSION: '0.12.1'
+  SOCI_VERSION: "0.12.1"
 
 jobs:
+  validate-release:
+    name: Validate Release Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate release context
+        env:
+          OPENCLAW_VERSION: ${{ inputs.openclaw-version || 'latest' }}
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Container releases are only allowed from the main branch." >&2
+            exit 1
+          fi
+
+          case "${OPENCLAW_VERSION}" in
+            ""|*[!A-Za-z0-9._-]*)
+              echo "openclaw-version may only contain letters, numbers, dots, underscores, and dashes." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run release preflight
+        run: npm run release:check
+
   build-and-push:
     name: Build, Push, and Index
+    needs: [validate-release]
     runs-on: ubuntu-latest
+    environment:
+      name: image-release
     steps:
       - name: Checkout
         uses: actions/checkout@v4
