@@ -53,9 +53,13 @@ function changedFilesFromBase(baseSha) {
     return [];
   }
 
-  return git(["diff", "--name-only", "--diff-filter=ACMR", `${baseSha}...HEAD`])
-    .split("\n")
-    .filter(Boolean);
+  try {
+    return git(["diff", "--name-only", "--diff-filter=ACMR", `${baseSha}...HEAD`])
+      .split("\n")
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 const baseSha = process.env.GATEKEEPING_BASE_SHA;

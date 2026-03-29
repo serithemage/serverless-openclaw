@@ -30,11 +30,11 @@ vi.mock("../../src/services/lambda-agent.js", () => ({
 }));
 
 vi.mock("../../src/services/secrets.js", () => ({
-  resolveSecrets: vi.fn().mockResolvedValue(
-    new Map([
-      ["/serverless-openclaw/secrets/bridge-auth-token", "bridge-token"],
-    ]),
-  ),
+  resolveSecrets: vi
+    .fn()
+    .mockResolvedValue(
+      new Map([["/serverless-openclaw/secrets/bridge-auth-token", "bridge-token"]]),
+    ),
 }));
 
 vi.mock("@aws-sdk/lib-dynamodb", () => ({

@@ -17,39 +17,45 @@ The very first prompt set the tone for the entire project:
 ```
 프로젝트 PRD 및 README 초기 작성
 ```
-*(Write the initial PRD and README for the project)*
+
+_(Write the initial PRD and README for the project)_
 
 But the real architectural constraints emerged through follow-up conversation. The key design prompts were:
 
 ```
 비용 최적화 분석 추가 및 PRD/README 반영
 ```
-*(Add cost optimization analysis and reflect in PRD/README)*
+
+_(Add cost optimization analysis and reflect in PRD/README)_
 
 ```
 Lambda 컨테이너 vs Fargate Spot 비교 분석 추가
 ```
-*(Add Lambda Container vs Fargate Spot comparison analysis)*
+
+_(Add Lambda Container vs Fargate Spot comparison analysis)_
 
 ## What Happened
 
 Claude Code analyzed the cost structure of running OpenClaw on AWS and produced several documents in rapid succession:
 
 ### Step 1: PRD with Cost Constraints
+
 The PRD was written with **cost as the #1 requirement** — not a nice-to-have, but the primary constraint. This shaped every subsequent decision.
 
 ### Step 2: Cost Analysis — What NOT to Use
+
 The most valuable output was identifying what to **avoid**:
 
-| Resource | Monthly Cost | Decision |
-|----------|-------------|----------|
-| NAT Gateway | $32+ | **Eliminated** — Use Fargate Public IP |
-| ALB | $18+ | **Eliminated** — Use API Gateway |
-| VPC Interface Endpoints | $7+ each | **Eliminated** — Use Gateway Endpoints (free) |
-| RDS | $15+ | **Eliminated** — Use DynamoDB on-demand |
-| Fargate (always-on) | $15+ | **Minimized** — Run on-demand only |
+| Resource                | Monthly Cost | Decision                                      |
+| ----------------------- | ------------ | --------------------------------------------- |
+| NAT Gateway             | $32+         | **Eliminated** — Use Fargate Public IP        |
+| ALB                     | $18+         | **Eliminated** — Use API Gateway              |
+| VPC Interface Endpoints | $7+ each     | **Eliminated** — Use Gateway Endpoints (free) |
+| RDS                     | $15+         | **Eliminated** — Use DynamoDB on-demand       |
+| Fargate (always-on)     | $15+         | **Minimized** — Run on-demand only            |
 
 ### Step 3: Architecture Emerges from Constraints
+
 With those eliminations, the architecture practically designed itself:
 
 ```
@@ -57,6 +63,7 @@ Client → API Gateway (WebSocket/REST) → Lambda → Fargate (on-demand) → O
 ```
 
 Key decisions:
+
 - **API Gateway** instead of ALB ($0 vs $18/month)
 - **DynamoDB on-demand** instead of RDS ($0 within Free Tier)
 - **Fargate Spot** with auto-shutdown (70% discount, zero idle cost)
@@ -64,11 +71,13 @@ Key decisions:
 - **No NAT Gateway** — Fargate gets a public IP directly
 
 ### Step 4: Detailed Implementation Plan
+
 The plan was broken into 10 steps, each with clear deliverables and test criteria. This became the Phase 1 roadmap.
 
 ## The Result
 
 Six documents were produced in under 2 hours:
+
 - `docs/PRD.md` — Product requirements with cost constraints
 - `docs/architecture.md` — Network, CDK, DynamoDB schema, security model
 - `docs/cost-optimization.md` — Detailed cost comparison
@@ -108,6 +117,6 @@ claude
 
 ### Running Cost
 
-| Phase | Action | Cost | Cumulative |
-|-------|--------|------|------------|
-| Design | Documentation only | $0.00 | $0.00 |
+| Phase  | Action             | Cost  | Cumulative |
+| ------ | ------------------ | ----- | ---------- |
+| Design | Documentation only | $0.00 | $0.00      |

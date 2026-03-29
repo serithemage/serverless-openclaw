@@ -61,7 +61,9 @@ routeMessage({
   agentRuntime: process.env.AGENT_RUNTIME ?? "fargate",
   invokeLambdaAgent: lambdaArn ? invokeLambdaAgent : undefined,
   lambdaAgentFunctionArn: lambdaArn || undefined,
-  onColdStartPreview: async (text) => { /* push to client */ },
+  onColdStartPreview: async (text) => {
+    /* push to client */
+  },
 });
 ```
 
@@ -84,10 +86,10 @@ function classifyRoute(params: ClassifyRouteParams): RouteDecision;
 
 ## Message Hint Syntax
 
-| Prefix | Effect | Example |
-|--------|--------|---------|
-| `/heavy` | Route to Fargate | `/heavy analyze this large codebase` |
-| `/fargate` | Route to Fargate | `/fargate run the full test suite` |
+| Prefix     | Effect           | Example                              |
+| ---------- | ---------------- | ------------------------------------ |
+| `/heavy`   | Route to Fargate | `/heavy analyze this large codebase` |
+| `/fargate` | Route to Fargate | `/fargate run the full test suite`   |
 
 The prefix is stripped before the message is forwarded to the agent.
 
@@ -142,9 +144,9 @@ User sends "/heavy analyze this codebase"
 
 ## Cost Impact
 
-| Scenario | Before (static) | After (smart) |
-|----------|-----------------|---------------|
-| Simple chat, no Fargate running | Lambda ($0) | Lambda ($0) |
-| Simple chat, Fargate already running | Lambda ($0) + Fargate wasted | **Fargate (reuse)** |
-| Complex task, user knows upfront | Lambda (may fail) | **Fargate (user hint + preview)** |
-| Lambda timeout | Error returned to user | **Fargate (auto-fallback)** |
+| Scenario                             | Before (static)              | After (smart)                     |
+| ------------------------------------ | ---------------------------- | --------------------------------- |
+| Simple chat, no Fargate running      | Lambda ($0)                  | Lambda ($0)                       |
+| Simple chat, Fargate already running | Lambda ($0) + Fargate wasted | **Fargate (reuse)**               |
+| Complex task, user knows upfront     | Lambda (may fail)            | **Fargate (user hint + preview)** |
+| Lambda timeout                       | Error returned to user       | **Fargate (auto-fallback)**       |

@@ -1,8 +1,5 @@
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
-import type {
-  LambdaAgentEvent,
-  LambdaAgentResponse,
-} from "@serverless-openclaw/shared";
+import type { LambdaAgentEvent, LambdaAgentResponse } from "@serverless-openclaw/shared";
 
 const lambda = new LambdaClient({});
 

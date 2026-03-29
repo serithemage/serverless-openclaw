@@ -13,7 +13,8 @@ The system worked, but the first message took **~120 seconds** to get a response
 ```
 이제 콜드 스타트 시간을 단축해 보자.
 ```
-*(Let's reduce the cold start time.)*
+
+_(Let's reduce the cold start time.)_
 
 This single prompt triggered a multi-day optimization marathon that produced **8 GitHub issues** (#2–#9), each targeting a different bottleneck.
 
@@ -79,6 +80,7 @@ perf: apply zstd compression to container image (#7)
 ```
 
 Gotcha: Docker Buildx `--compression` is NOT a valid CLI flag. Must use:
+
 ```bash
 docker buildx build --output type=image,push=true,compression=zstd,compression-level=3,force-compression=true
 ```
@@ -103,11 +105,11 @@ perf: upgrade Fargate to 2 vCPU / 4096 MB with configurable env vars (#8)
 perf: pin OpenClaw v2026.2.13 and revert Fargate defaults to 1 vCPU (#9)
 ```
 
-| Version | Status | Cold Start |
-|---------|--------|------------|
-| v2026.2.9 | Working | 65.3s |
-| v2026.2.13 | Working | 57.9s |
-| v2026.2.14 | **BROKEN** | N/A |
+| Version    | Status     | Cold Start |
+| ---------- | ---------- | ---------- |
+| v2026.2.9  | Working    | 65.3s      |
+| v2026.2.13 | Working    | 57.9s      |
+| v2026.2.14 | **BROKEN** | N/A        |
 
 ---
 
@@ -119,6 +121,7 @@ The single biggest optimization was shrinking the Docker image:
 **After**: 1.27GB (43% reduction)
 
 How:
+
 1. **Remove AWS CLI** (-358MB): Replace `aws s3 sync` with `@aws-sdk/client-s3` Node.js code
 2. **COPY --chown optimization** (-134MB): Avoid separate `chown` layer that duplicates files
 3. **Pre-generate config**: Skip runtime `openclaw onboard` step
@@ -138,6 +141,7 @@ feat: add predictive pre-warming to eliminate cold start (P9)
 ```
 
 **How it works**:
+
 1. EventBridge cron triggers a prewarm Lambda
 2. Lambda starts a Fargate task with `USER_ID=system:prewarm`
 3. Container starts and waits (warm, ready for any user)
@@ -148,15 +152,15 @@ feat: add predictive pre-warming to eliminate cold start (P9)
 
 ## The Result
 
-| Optimization | Cold Start | Reduction |
-|-------------|-----------|-----------|
-| Baseline (0.25 vCPU) | ~120s | — |
-| 1 vCPU + 2048MB | ~60s | -50% |
-| Docker image diet | ~50s | -17% |
-| Startup parallelization | ~45s | -10% |
-| zstd compression | ~42s | -7% |
-| Version pinning (v2026.2.13) | ~40s | -5% |
-| **Predictive pre-warming** | **~0s** | **-100%** |
+| Optimization                 | Cold Start | Reduction |
+| ---------------------------- | ---------- | --------- |
+| Baseline (0.25 vCPU)         | ~120s      | —         |
+| 1 vCPU + 2048MB              | ~60s       | -50%      |
+| Docker image diet            | ~50s       | -17%      |
+| Startup parallelization      | ~45s       | -10%      |
+| zstd compression             | ~42s       | -7%       |
+| Version pinning (v2026.2.13) | ~40s       | -5%       |
+| **Predictive pre-warming**   | **~0s**    | **-100%** |
 
 Eight issues, eight fixes, from 120 seconds to zero.
 
@@ -190,9 +194,9 @@ make task-logs
 
 ### Running Cost
 
-| Phase | Action | Cost | Cumulative |
-|-------|--------|------|------------|
-| Design | Documentation only | $0.00 | $0.00 |
-| MVP Build | Local development only | $0.00 | $0.00 |
-| First Deploy | CDK deploy + debugging | ~$0.10 | ~$0.10 |
-| Cold Start | Multiple task launches | ~$0.15 | ~$0.25 |
+| Phase        | Action                 | Cost   | Cumulative |
+| ------------ | ---------------------- | ------ | ---------- |
+| Design       | Documentation only     | $0.00  | $0.00      |
+| MVP Build    | Local development only | $0.00  | $0.00      |
+| First Deploy | CDK deploy + debugging | ~$0.10 | ~$0.10     |
+| Cold Start   | Multiple task launches | ~$0.15 | ~$0.25     |

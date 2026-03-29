@@ -65,14 +65,9 @@ vi.mock("@aws-sdk/client-ec2", () => ({
   EC2Client: vi.fn(() => ({ send: vi.fn() })),
 }));
 
-function makeEvent(
-  body: Record<string, unknown>,
-  secretToken?: string,
-): APIGatewayProxyEventV2 {
+function makeEvent(body: Record<string, unknown>, secretToken?: string): APIGatewayProxyEventV2 {
   return {
-    headers: secretToken
-      ? { "x-telegram-bot-api-secret-token": secretToken }
-      : {},
+    headers: secretToken ? { "x-telegram-bot-api-secret-token": secretToken } : {},
     body: JSON.stringify(body),
   } as unknown as APIGatewayProxyEventV2;
 }
@@ -96,10 +91,7 @@ describe("telegram-webhook handler", () => {
   });
 
   it("should return 403 for invalid secret token", async () => {
-    const event = makeEvent(
-      { message: { chat: { id: 123 }, text: "hi" } },
-      "wrong-secret",
-    );
+    const event = makeEvent({ message: { chat: { id: 123 }, text: "hi" } }, "wrong-secret");
 
     const result = await handler(event);
 
@@ -210,10 +202,7 @@ describe("telegram-webhook handler", () => {
   });
 
   it("should return 200 for updates without message", async () => {
-    const event = makeEvent(
-      { edited_message: { chat: { id: 123 }, text: "edited" } },
-      "my-secret",
-    );
+    const event = makeEvent({ edited_message: { chat: { id: 123 }, text: "edited" } }, "my-secret");
 
     const result = await handler(event);
 
@@ -240,12 +229,9 @@ describe("telegram-webhook handler", () => {
     const result = await handler(event);
 
     expect(result.statusCode).toBe(200);
-    expect(mockVerifyOtpAndLink).toHaveBeenCalledWith(
-      expect.anything(),
-      "67890",
-      "123456",
-      { agentRuntime: undefined },
-    );
+    expect(mockVerifyOtpAndLink).toHaveBeenCalledWith(expect.anything(), "67890", "123456", {
+      agentRuntime: undefined,
+    });
     expect(mockSendTelegramMessage).toHaveBeenCalledWith(
       expect.anything(),
       expect.any(String),
@@ -397,10 +383,7 @@ describe("telegram-webhook handler", () => {
 
     await handler(event);
 
-    expect(mockResolveUserId).toHaveBeenCalledWith(
-      expect.anything(),
-      "telegram:67890",
-    );
+    expect(mockResolveUserId).toHaveBeenCalledWith(expect.anything(), "telegram:67890");
     expect(mockRouteMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "cognito-abc",

@@ -12,7 +12,8 @@ Lambda was fast and cheap but limited (15-minute timeout, `/tmp` workspace, no p
 Lambda나 Fargate 어느 한 쪽만 쓸게 아니라 병행해서 사용하는 방식으로 하고
 작업 성격에 따라 스위칭 하는 구조로 하면 좋겠네
 ```
-*(Instead of using only Lambda or Fargate, let's use both together and switch based on the task type.)*
+
+_(Instead of using only Lambda or Fargate, let's use both together and switch based on the task type.)_
 
 ## The Prompt
 
@@ -22,7 +23,8 @@ The implementation was kicked off with a single directive:
 이슈 생성하고, 설계 구체화 하고, 테스트 계획 세운다음 구현 및 테스트 작업 진행시켜.
 문서화, 리뷰, 릴리즈까지 ralph loop로 진행해.
 ```
-*(Create issues, refine the design, plan tests, then implement and test. Documentation, review, and release via ralph loop.)*
+
+_(Create issues, refine the design, plan tests, then implement and test. Documentation, review, and release via ralph loop.)_
 
 This was a "full auto" prompt — from issue creation to release, all in one go.
 
@@ -61,7 +63,8 @@ A creative solution to Fargate's cold start problem:
 ECS가 사용되는 작업에 대해서는 컨테이너가 콜드스타트 하는 경우
 추가적인 맥락을 람다를 통해서 수집해서 기다리는 시간을 좀 덜 지루하게 만들 수 있지 않을까?
 ```
-*(When ECS cold starts, could we use Lambda to gather context and make the wait less boring?)*
+
+_(When ECS cold starts, could we use Lambda to gather context and make the wait less boring?)_
 
 The idea: when a user requests Fargate (via `/heavy` hint), start the container AND invoke Lambda simultaneously. Lambda responds in ~2-5 seconds with a "preview" (tools disabled), while Fargate boots up for the full response.
 
@@ -103,11 +106,13 @@ A week after deployment, a bug was discovered:
 설계에 의하면 요청 내용에 따라 람다 또는 ECS/Fargate 스팟을 사용하도록 되어 있는데,
 실제로는 요청내용과 상관 없이 ECS로만 라우팅이 되는것 같아.
 ```
-*(According to the design, it should route to Lambda or Fargate based on the request. But in practice, everything routes to ECS regardless.)*
+
+_(According to the design, it should route to Lambda or Fargate based on the request. But in practice, everything routes to ECS regardless.)_
 
 **Root Cause**: The `AGENT_RUNTIME` and `LAMBDA_AGENT_FUNCTION_ARN` environment variables were set in CDK but the handlers weren't reading them and passing them to `routeMessage`. Without these values, routing defaulted to Fargate.
 
 **Fix**: Wire the env vars through both handlers:
+
 ```typescript
 const agentRuntime = process.env.AGENT_RUNTIME ?? "fargate";
 const lambdaArn = process.env.LAMBDA_AGENT_FUNCTION_ARN;
@@ -122,12 +127,14 @@ A new problem emerged with hybrid routing:
 ```
 봇과 대화를 나눠보면 이전 콘텍스트를 기억 못하는 경우가 있는데
 ```
-*(When chatting with the bot, it sometimes doesn't remember previous context.)*
+
+_(When chatting with the bot, it sometimes doesn't remember previous context.)_
 
 ```
 히스토리 통합해서 기억해야 연속성이 생기지 않을까?
 ```
-*(Shouldn't we unify the history so it maintains continuity?)*
+
+_(Shouldn't we unify the history so it maintains continuity?)_
 
 Lambda and Fargate had separate session stores — Lambda used S3, Fargate used local filesystem. When routing switched between them, conversation context was lost.
 
@@ -135,13 +142,13 @@ Lambda and Fargate had separate session stores — Lambda used S3, Fargate used 
 
 ## The Result
 
-| Scenario | Before | After |
-|----------|--------|-------|
-| Simple chat, no Fargate running | Lambda ($0) | Lambda ($0) |
-| Simple chat, Fargate already running | Lambda + Fargate wasted | **Fargate reuse** |
-| Complex task (/heavy) | Lambda timeout risk | **Fargate + Lambda preview** |
-| Lambda fails | Error to user | **Fargate auto-fallback** |
-| Cross-runtime conversation | Context lost | **Unified S3 sessions** |
+| Scenario                             | Before                  | After                        |
+| ------------------------------------ | ----------------------- | ---------------------------- |
+| Simple chat, no Fargate running      | Lambda ($0)             | Lambda ($0)                  |
+| Simple chat, Fargate already running | Lambda + Fargate wasted | **Fargate reuse**            |
+| Complex task (/heavy)                | Lambda timeout risk     | **Fargate + Lambda preview** |
+| Lambda fails                         | Error to user           | **Fargate auto-fallback**    |
+| Cross-runtime conversation           | Context lost            | **Unified S3 sessions**      |
 
 ## Lessons Learned
 
@@ -174,11 +181,11 @@ Lambda and Fargate had separate session stores — Lambda used S3, Fargate used 
 
 ### Running Cost
 
-| Phase | Action | Cost | Cumulative |
-|-------|--------|------|------------|
-| Design | Documentation only | $0.00 | $0.00 |
-| MVP Build | Local development only | $0.00 | $0.00 |
-| First Deploy | CDK deploy + debugging | ~$0.10 | ~$0.10 |
-| Cold Start | Multiple task launches | ~$0.15 | ~$0.25 |
-| Lambda Migration | Lambda Free Tier | $0.00 | ~$0.25 |
-| Smart Routing | Within Free Tier | $0.00 | ~$0.25 |
+| Phase            | Action                 | Cost   | Cumulative |
+| ---------------- | ---------------------- | ------ | ---------- |
+| Design           | Documentation only     | $0.00  | $0.00      |
+| MVP Build        | Local development only | $0.00  | $0.00      |
+| First Deploy     | CDK deploy + debugging | ~$0.10 | ~$0.10     |
+| Cold Start       | Multiple task launches | ~$0.15 | ~$0.25     |
+| Lambda Migration | Lambda Free Tier       | $0.00  | ~$0.25     |
+| Smart Routing    | Within Free Tier       | $0.00  | ~$0.25     |

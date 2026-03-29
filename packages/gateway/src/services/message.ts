@@ -17,7 +17,10 @@ import type { StartTaskParams } from "./container.js";
 import type { InvokeLambdaAgentParams } from "./lambda-agent.js";
 import { classifyRoute, stripRouteHint } from "./route-classifier.js";
 
-type FetchFn = (url: string, init: RequestInit) => Promise<{ ok: boolean; status: number; statusText: string }>;
+type FetchFn = (
+  url: string,
+  init: RequestInit,
+) => Promise<{ ok: boolean; status: number; statusText: string }>;
 type Send = (command: unknown) => Promise<unknown>;
 
 export async function sendToBridge(
@@ -41,10 +44,7 @@ export async function sendToBridge(
   }
 }
 
-export async function savePendingMessage(
-  send: Send,
-  item: PendingMessageItem,
-): Promise<void> {
+export async function savePendingMessage(send: Send, item: PendingMessageItem): Promise<void> {
   await send(
     new PutCommand({
       TableName: TABLE_NAMES.PENDING_MESSAGES,
@@ -79,7 +79,10 @@ export interface RouteDeps {
 
 export type RouteResult = "sent" | "queued" | "started" | "lambda";
 
-async function routeFargate(deps: RouteDeps, taskState: TaskStateItem | null): Promise<RouteResult> {
+async function routeFargate(
+  deps: RouteDeps,
+  taskState: TaskStateItem | null,
+): Promise<RouteResult> {
   if (taskState?.status === "Running" && taskState.publicIp) {
     try {
       await sendToBridge(deps.fetchFn, taskState.publicIp, deps.bridgeAuthToken, {
@@ -91,7 +94,10 @@ async function routeFargate(deps: RouteDeps, taskState: TaskStateItem | null): P
       });
       return "sent";
     } catch (err) {
-      console.warn(`Bridge unreachable at ${taskState.publicIp}, falling back to pending queue`, err);
+      console.warn(
+        `Bridge unreachable at ${taskState.publicIp}, falling back to pending queue`,
+        err,
+      );
     }
   }
 
@@ -186,11 +192,7 @@ async function invokeColdStartPreview(deps: RouteDeps): Promise<void> {
 
 export async function routeMessage(deps: RouteDeps): Promise<RouteResult> {
   // Phase 2: Lambda agent path
-  if (
-    deps.agentRuntime === "lambda" &&
-    deps.invokeLambdaAgent &&
-    deps.lambdaAgentFunctionArn
-  ) {
+  if (deps.agentRuntime === "lambda" && deps.invokeLambdaAgent && deps.lambdaAgentFunctionArn) {
     const response = await deps.invokeLambdaAgent({
       functionArn: deps.lambdaAgentFunctionArn,
       userId: deps.userId,
@@ -209,11 +211,7 @@ export async function routeMessage(deps: RouteDeps): Promise<RouteResult> {
   }
 
   // Smart routing: when agentRuntime=both, classify based on task state and message hints
-  if (
-    deps.agentRuntime === "both" &&
-    deps.invokeLambdaAgent &&
-    deps.lambdaAgentFunctionArn
-  ) {
+  if (deps.agentRuntime === "both" && deps.invokeLambdaAgent && deps.lambdaAgentFunctionArn) {
     const taskState = await deps.getTaskState(deps.userId);
     const decision = classifyRoute({ message: deps.message, taskState });
 

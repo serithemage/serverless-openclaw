@@ -129,7 +129,10 @@ export async function handler(event: {
   }
 
   if (msg.action === "getHistory") {
-    return { statusCode: 200, body: JSON.stringify({ type: "error", error: "Use REST API for history" }) };
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ type: "error", error: "Use REST API for history" }),
+    };
   }
 
   return { statusCode: 400, body: JSON.stringify({ error: "Unknown action" }) };

@@ -33,6 +33,7 @@ fix: refactor OpenClaw client, increase Fargate memory to 1024 MiB
 **Root Cause**: The Dockerfile used `npm ci` which triggered husky's `prepare` script inside the container, which failed because git wasn't available.
 
 **Fix**:
+
 ```dockerfile
 # Delete the prepare script before installing
 RUN npm pkg delete scripts.prepare && npm ci
@@ -60,7 +61,8 @@ RUN npm pkg delete scripts.prepare && npm ci
 
 **Root Cause**: CloudFormation's `{{resolve:ssm-secure:...}}` syntax is **not supported** in Lambda environment variables. This is a well-known AWS limitation but not obvious from the docs.
 
-**Fix**: Pass SSM parameter *paths* as env vars, resolve at runtime:
+**Fix**: Pass SSM parameter _paths_ as env vars, resolve at runtime:
+
 ```typescript
 // Instead of: process.env.BRIDGE_AUTH_TOKEN (resolved by CF)
 // Do: process.env.SSM_BRIDGE_AUTH_TOKEN = "/serverless-openclaw/secrets/bridge-auth-token"
@@ -78,6 +80,7 @@ This led to creating `resolveSecrets()` — a batch resolver with caching.
 **Symptom**: OpenClaw Gateway wouldn't start in the container.
 
 **Root Cause**: Multiple issues layered:
+
 1. Config path was `~/.config/openclaw/` — actually `~/.openclaw/openclaw.json`
 2. `auth.method` key in config was invalid — OpenClaw rejected it
 3. `gateway.mode: "local"` was required but missing
@@ -160,8 +163,8 @@ make task-status
 
 ### Running Cost
 
-| Phase | Action | Cost | Cumulative |
-|-------|--------|------|------------|
-| Design | Documentation only | $0.00 | $0.00 |
-| MVP Build | Local development only | $0.00 | $0.00 |
-| First Deploy | CDK deploy + debugging | ~$0.10 | ~$0.10 |
+| Phase        | Action                 | Cost   | Cumulative |
+| ------------ | ---------------------- | ------ | ---------- |
+| Design       | Documentation only     | $0.00  | $0.00      |
+| MVP Build    | Local development only | $0.00  | $0.00      |
+| First Deploy | CDK deploy + debugging | ~$0.10 | ~$0.10     |

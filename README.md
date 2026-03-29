@@ -106,39 +106,43 @@ graph TB
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| **IaC** | AWS CDK (TypeScript) |
-| **API** | API Gateway (WebSocket + REST) |
-| **Gateway** | Lambda (Node.js/TypeScript) |
-| **Runtime** | Lambda Container Image (primary) / ECS Fargate (fallback) |
-| **Frontend** | React + Vite + TypeScript |
-| **Auth** | AWS Cognito |
-| **DB** | DynamoDB |
-| **File Storage** | S3 |
-| **Monitoring** | CloudWatch |
-| **Messenger** | Telegram Bot API |
+| Layer            | Technology                                                |
+| ---------------- | --------------------------------------------------------- |
+| **IaC**          | AWS CDK (TypeScript)                                      |
+| **API**          | API Gateway (WebSocket + REST)                            |
+| **Gateway**      | Lambda (Node.js/TypeScript)                               |
+| **Runtime**      | Lambda Container Image (primary) / ECS Fargate (fallback) |
+| **Frontend**     | React + Vite + TypeScript                                 |
+| **Auth**         | AWS Cognito                                               |
+| **DB**           | DynamoDB                                                  |
+| **File Storage** | S3                                                        |
+| **Monitoring**   | CloudWatch                                                |
+| **Messenger**    | Telegram Bot API                                          |
 
 ## Roadmap
 
 ### Phase 1: MVP (Complete)
+
 - On-demand deployment of OpenClaw containers on AWS
 - Web chat UI + Telegram bot integration
 - AI conversation/chat + task automation
 - Cognito authentication + data persistence
 
 ### Phase 2: Lambda Migration (Complete)
+
 - Lambda Container Image runtime (zero idle cost)
 - S3 session persistence with DynamoDB concurrency control
 - `AGENT_RUNTIME` feature flag (fargate/lambda/both)
 - Cold start: 1.35s, Warm: 0.12s
 
 ### Phase 3: Expansion
+
 - Browser automation (headless Chromium)
 - Custom Skills development support
 - Settings management UI
 
 ### Phase 4: Advanced Features
+
 - CloudWatch alerts + cost dashboard
 - EventBridge-based scheduled task execution
 - Additional messenger support (Discord, Slack)
@@ -147,10 +151,10 @@ graph TB
 
 Extreme cost optimization with Lambda Container + API Gateway. (Assuming 100 requests/month, ~1.5s each)
 
-| Runtime | Monthly Cost (Free Tier) | Monthly Cost (After) |
-|---------|-------------------------|---------------------|
-| **Lambda (default)** | **~$0.01/month** | **~$0.01/month** |
-| Fargate (fallback) | ~$0.27/month | ~$1.11/month |
+| Runtime              | Monthly Cost (Free Tier) | Monthly Cost (After) |
+| -------------------- | ------------------------ | -------------------- |
+| **Lambda (default)** | **~$0.01/month**         | **~$0.01/month**     |
+| Fargate (fallback)   | ~$0.27/month             | ~$1.11/month         |
 
 Key: Lambda eliminates all idle costs. Fargate Spot available as fallback for long-running tasks (>15 min).
 
@@ -175,14 +179,14 @@ Then redeploy: `cd packages/cdk && npx cdk deploy ApiStack`
 
 Skills are provided that automatically load project context in Claude Code during development.
 
-| Skill | Invocation | Description |
-|-------|------------|-------------|
-| **context** | Auto-loaded | Project overview, tech stack, key decisions |
-| **implement** | `/implement 1-3` | Guide for Phase 1 implementation steps |
-| **lambda-migration** | `/lambda-migration 2-1` | Guide for Phase 2 Lambda migration steps |
-| **architecture** | `/architecture` | Network, data model, CDK stack reference |
-| **security** | `/security` | Security checklist (Bridge defense, IDOR, secrets) |
-| **cost** | `/cost` | Cost target verification (prohibited resources, checklist) |
+| Skill                | Invocation              | Description                                                |
+| -------------------- | ----------------------- | ---------------------------------------------------------- |
+| **context**          | Auto-loaded             | Project overview, tech stack, key decisions                |
+| **implement**        | `/implement 1-3`        | Guide for Phase 1 implementation steps                     |
+| **lambda-migration** | `/lambda-migration 2-1` | Guide for Phase 2 Lambda migration steps                   |
+| **architecture**     | `/architecture`         | Network, data model, CDK stack reference                   |
+| **security**         | `/security`             | Security checklist (Bridge defense, IDOR, secrets)         |
+| **cost**             | `/cost`                 | Cost target verification (prohibited resources, checklist) |
 
 ## Project Structure
 
@@ -221,8 +225,8 @@ Follow the full journey of building this project through conversational AI codin
 
 **[Vibe Coding Tutorial](docs/vibe-coding-tutorial/README.md)** — 7 chapters covering idea → infrastructure → deployment → optimization → hybrid architecture
 
-| Chapters | Time | Cost | Key Topics |
-|----------|------|------|------------|
+| Chapters     | Time      | Cost   | Key Topics                                                                               |
+| ------------ | --------- | ------ | ---------------------------------------------------------------------------------------- |
 | 7 + appendix | ~29 hours | ~$0.25 | CDK stacks, cold start optimization, Lambda migration, smart routing, release automation |
 
 ## Documentation
