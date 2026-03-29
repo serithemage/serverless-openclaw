@@ -6,13 +6,13 @@ This guide covers the complete process for deploying Serverless OpenClaw on a cl
 
 ## 1. Prerequisites
 
-| Item | Minimum Version | Verification Command |
-|------|----------------|---------------------|
-| AWS CLI | v2 | `aws --version` |
-| AWS CDK CLI | v2.170+ | `npx cdk --version` |
-| Node.js | v20+ | `node -v` |
-| Docker | Latest | `docker --version` |
-| npm | v9+ | `npm -v` |
+| Item        | Minimum Version | Verification Command |
+| ----------- | --------------- | -------------------- |
+| AWS CLI     | v2              | `aws --version`      |
+| AWS CDK CLI | v2.170+         | `npx cdk --version`  |
+| Node.js     | v22+            | `node -v`            |
+| Docker      | Latest          | `docker --version`   |
+| npm         | v9+             | `npm -v`             |
 
 ### AWS Account Setup
 
@@ -60,12 +60,12 @@ Secrets are managed by CDK via `SecretsStack`. On the first deploy, provide all 
 
 ### Prepare Secret Values
 
-| Parameter | How to Obtain |
-|-----------|--------------|
-| `BridgeAuthToken` | Random string: `openssl rand -hex 32` |
-| `OpenclawGatewayToken` | Your OpenClaw Gateway token |
-| `AnthropicApiKey` | Your Anthropic API key |
-| `TelegramBotToken` | (Optional) Token from @BotFather |
+| Parameter               | How to Obtain                                                               |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `BridgeAuthToken`       | Random string: `openssl rand -hex 32`                                       |
+| `OpenclawGatewayToken`  | Your OpenClaw Gateway token                                                 |
+| `AnthropicApiKey`       | Your Anthropic API key                                                      |
+| `TelegramBotToken`      | (Optional) Token from @BotFather                                            |
 | `TelegramWebhookSecret` | (Optional) Random string: `openssl rand -hex 32` (must **not** contain `:`) |
 
 ### When Using Telegram Bot (Optional)
@@ -258,16 +258,16 @@ aws cognito-idp admin-update-user-attributes \
 
 Key values available from CDK Output:
 
-| CDK Output | Purpose |
-|------------|---------|
-| `WebStack.WebAppUrl` | Web UI access URL |
-| `WebStack.DistributionDomainName` | CloudFront domain |
-| `ApiStack.WebSocketApiEndpoint` | WebSocket connection URL |
-| `ApiStack.HttpApiEndpoint` | REST API + Telegram webhook URL |
-| `AuthStack.UserPoolId` | Cognito User Pool ID |
-| `AuthStack.UserPoolClientId` | Cognito App Client ID |
-| `ComputeStack.ClusterArn` | ECS cluster ARN |
-| `StorageStack.EcrRepositoryUri` | Docker image push target |
+| CDK Output                        | Purpose                         |
+| --------------------------------- | ------------------------------- |
+| `WebStack.WebAppUrl`              | Web UI access URL               |
+| `WebStack.DistributionDomainName` | CloudFront domain               |
+| `ApiStack.WebSocketApiEndpoint`   | WebSocket connection URL        |
+| `ApiStack.HttpApiEndpoint`        | REST API + Telegram webhook URL |
+| `AuthStack.UserPoolId`            | Cognito User Pool ID            |
+| `AuthStack.UserPoolClientId`      | Cognito App Client ID           |
+| `ComputeStack.ClusterArn`         | ECS cluster ARN                 |
+| `StorageStack.EcrRepositoryUri`   | Docker image push target        |
 
 ### `.env.local` for Web UI Local Development
 
@@ -282,12 +282,12 @@ VITE_COGNITO_CLIENT_ID=<AuthStack.UserPoolClientId>
 
 Set in `.env` or exported before running CDK commands.
 
-| Variable | Default | Values | Purpose |
-|----------|---------|--------|---------|
-| `AGENT_RUNTIME` | `fargate` | `fargate` \| `lambda` \| `both` | Compute path selection |
-| `AI_PROVIDER` | `anthropic` | `anthropic` \| `bedrock` | AI provider selection |
-| `AI_MODEL` | _(provider default)_ | any model ID | Override default model |
-| `DEPLOY_WEB` | `true` | `true` \| `false` | Include WebStack deployment |
+| Variable        | Default              | Values                          | Purpose                     |
+| --------------- | -------------------- | ------------------------------- | --------------------------- |
+| `AGENT_RUNTIME` | `fargate`            | `fargate` \| `lambda` \| `both` | Compute path selection      |
+| `AI_PROVIDER`   | `anthropic`          | `anthropic` \| `bedrock`        | AI provider selection       |
+| `AI_MODEL`      | _(provider default)_ | any model ID                    | Override default model      |
+| `DEPLOY_WEB`    | `true`               | `true` \| `false`               | Include WebStack deployment |
 
 ---
 
@@ -383,11 +383,11 @@ npx cdk destroy --all --profile $AWS_PROFILE
 
 The project currently runs with `AGENT_RUNTIME=both`, keeping both Lambda (primary) and Fargate (fallback) paths available. This allows gradual migration and instant rollback.
 
-| Mode | Lambda Agent | Fargate | Use Case |
-|------|-------------|---------|----------|
-| `fargate` (default) | Skipped | Active | Original behavior, backward compatible |
-| `lambda` | Active | Skipped | Lambda only, zero fixed cost |
-| **`both`** | **Active (smart routing)** | **Active (reuse/fallback)** | **Current — smart routing based on task** |
+| Mode                | Lambda Agent               | Fargate                     | Use Case                                  |
+| ------------------- | -------------------------- | --------------------------- | ----------------------------------------- |
+| `fargate` (default) | Skipped                    | Active                      | Original behavior, backward compatible    |
+| `lambda`            | Active                     | Skipped                     | Lambda only, zero fixed cost              |
+| **`both`**          | **Active (smart routing)** | **Active (reuse/fallback)** | **Current — smart routing based on task** |
 
 ### Prerequisites
 
@@ -450,12 +450,13 @@ ComputeStack resources will be skipped. To rollback: set `AGENT_RUNTIME=fargate`
 
 By default the system uses Anthropic (requires `AnthropicApiKey` in SecretsStack). Set `AI_PROVIDER=bedrock` to use Amazon Bedrock instead — no API key needed, authentication uses the Lambda execution role / Fargate task role via the AWS SDK default credential chain.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AI_PROVIDER` | `anthropic` | `anthropic` or `bedrock` |
-| `AI_MODEL` | _(provider default)_ | Override model ID (optional) |
+| Variable      | Default              | Description                  |
+| ------------- | -------------------- | ---------------------------- |
+| `AI_PROVIDER` | `anthropic`          | `anthropic` or `bedrock`     |
+| `AI_MODEL`    | _(provider default)_ | Override model ID (optional) |
 
 **Default models:**
+
 - Anthropic: `claude-sonnet-4-20250514`
 - Bedrock: region-aware (see table below)
 
@@ -463,11 +464,11 @@ By default the system uses Anthropic (requires `AnthropicApiKey` in SecretsStack
 
 The Bedrock model ID is derived automatically from `AWS_REGION` at runtime. Bedrock requires a geographic prefix to route requests within a compliance boundary:
 
-| AWS Regions | Model ID used |
-|-------------|---------------|
-| `eu-*` | `eu.anthropic.claude-sonnet-4-20250514-v1:0` |
-| `us-*`, `ca-*` | `us.anthropic.claude-sonnet-4-20250514-v1:0` |
-| `ap-*` | `apac.anthropic.claude-sonnet-4-20250514-v1:0` |
+| AWS Regions       | Model ID used                                         |
+| ----------------- | ----------------------------------------------------- |
+| `eu-*`            | `eu.anthropic.claude-sonnet-4-20250514-v1:0`          |
+| `us-*`, `ca-*`    | `us.anthropic.claude-sonnet-4-20250514-v1:0`          |
+| `ap-*`            | `apac.anthropic.claude-sonnet-4-20250514-v1:0`        |
 | All other regions | `anthropic.claude-sonnet-4-20250514-v1:0` (no prefix) |
 
 Set `AI_MODEL` to override automatic resolution (you are responsible for using the correct format). `bedrockDiscovery` is always disabled — model selection is explicit via `resolveBedrockModel()`.
@@ -520,6 +521,7 @@ aws logs tail /ecs/serverless-openclaw --follow --profile $AWS_PROFILE
 ```
 
 **Common causes:**
+
 - Image not pushed to ECR → build and push Docker image
 - Insufficient SSM parameter access permissions → redeploy with CDK
 - Insufficient memory → adjust `memoryLimitMiB` in `ComputeStack`
@@ -537,6 +539,7 @@ curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
 ```
 
 **Common causes:**
+
 - Webhook URL not registered → run `make telegram-webhook`
 - Secret token mismatch (403 Forbidden) → run `make telegram-webhook` to re-register with SSM secret
 - Lambda error → check CloudWatch logs for `telegram-webhook` function

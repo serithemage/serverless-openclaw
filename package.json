@@ -1,6 +1,9 @@
 {
   "name": "serverless-openclaw",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "workspaces": [
     "packages/*"
   ],

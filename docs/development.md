@@ -8,13 +8,13 @@ This guide covers local development environment setup and workflows for contribu
 
 ### Required Tools
 
-| Tool | Minimum Version | Purpose |
-|------|----------------|---------|
-| Node.js | v20+ | Runtime |
-| npm | v9+ | Package manager (workspaces) |
-| Docker | Latest | Container build/test |
-| AWS CLI | v2 | CDK deployment, resource inspection |
-| AWS CDK CLI | v2.170+ | Infrastructure deployment |
+| Tool        | Minimum Version | Purpose                             |
+| ----------- | --------------- | ----------------------------------- |
+| Node.js     | v22+            | Runtime                             |
+| npm         | v9+             | Package manager (workspaces)        |
+| Docker      | Latest          | Container build/test                |
+| AWS CLI     | v2              | CDK deployment, resource inspection |
+| AWS CDK CLI | v2.170+         | Infrastructure deployment           |
 
 ### Initial Setup
 
@@ -87,13 +87,13 @@ Managed as an npm workspaces monorepo + TypeScript project references. Inter-pac
 
 ## 3. Build Commands
 
-| Command | Description |
-|---------|-------------|
-| `npm run build` | TypeScript build (`tsc --build`, all packages) |
-| `npm run lint` | ESLint check (`packages/**/*.ts`) |
-| `npm run format` | Prettier formatting |
-| `npm run test` | Unit tests (vitest) |
-| `npm run test:e2e` | E2E tests (vitest, `*.e2e.test.ts`) |
+| Command            | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| `npm run build`    | TypeScript build (`tsc --build`, all packages) |
+| `npm run lint`     | ESLint check (`packages/**/*.ts`)              |
+| `npm run format`   | Prettier formatting                            |
+| `npm run test`     | Unit tests (vitest)                            |
+| `npm run test:e2e` | E2E tests (vitest, `*.e2e.test.ts`)            |
 
 ### CDK Commands
 
@@ -188,17 +188,17 @@ npx vite dev   # http://localhost:5173
 
 Consists of 9 CDK stacks.
 
-| Stack | Key Resources |
-|-------|--------------|
-| SecretsStack | SSM SecureString parameters (5 secrets) |
-| NetworkStack | VPC, public subnets, VPC Gateway Endpoints, Security Group |
-| StorageStack | 5 DynamoDB tables, S3, ECR |
-| AuthStack | Cognito User Pool, App Client |
-| ComputeStack | ECS cluster, Fargate Task Definition |
+| Stack            | Key Resources                                                      |
+| ---------------- | ------------------------------------------------------------------ |
+| SecretsStack     | SSM SecureString parameters (5 secrets)                            |
+| NetworkStack     | VPC, public subnets, VPC Gateway Endpoints, Security Group         |
+| StorageStack     | 5 DynamoDB tables, S3, ECR                                         |
+| AuthStack        | Cognito User Pool, App Client                                      |
+| ComputeStack     | ECS cluster, Fargate Task Definition                               |
 | LambdaAgentStack | Lambda Container Image (DockerImageFunction, ARM64, 2048MB, 15min) |
-| ApiStack | WebSocket API, HTTP API, 7 Lambda functions, EventBridge |
-| WebStack | S3 (web assets), CloudFront (OAC) |
-| MonitoringStack | CloudWatch Dashboard (6 rows, 10 custom metrics) |
+| ApiStack         | WebSocket API, HTTP API, 7 Lambda functions, EventBridge           |
+| WebStack         | S3 (web assets), CloudFront (OAC)                                  |
+| MonitoringStack  | CloudWatch Dashboard (6 rows, 10 custom metrics)                   |
 
 **Dependencies:** SecretsStack + NetworkStack → StorageStack → {AuthStack, ComputeStack, LambdaAgentStack} → ApiStack → WebStack + MonitoringStack
 
@@ -232,10 +232,10 @@ npx vitest packages/gateway/__tests__/services/message.test.ts
 
 Managed with husky and configured automatically.
 
-| Hook | Execution | Purpose |
-|------|-----------|---------|
+| Hook         | Execution                                       | Purpose                                 |
+| ------------ | ----------------------------------------------- | --------------------------------------- |
 | `pre-commit` | `npm run build && npm run lint && npm run test` | Ensure build, lint, and unit tests pass |
-| `pre-push` | `npm run test:e2e` | Ensure E2E tests pass |
+| `pre-push`   | `npm run test:e2e`                              | Ensure E2E tests pass                   |
 
 > You can bypass hooks with the `--no-verify` flag, but this is not recommended as it may cause CI failures.
 
