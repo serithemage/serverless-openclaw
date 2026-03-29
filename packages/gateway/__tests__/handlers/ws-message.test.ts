@@ -56,6 +56,13 @@ vi.mock("@aws-sdk/client-ec2", () => ({
   EC2Client: vi.fn(() => ({ send: vi.fn() })),
 }));
 
+vi.mock("@aws-sdk/client-apigatewaymanagementapi", () => ({
+  ApiGatewayManagementApiClient: vi.fn(() => ({
+    send: vi.fn().mockResolvedValue(undefined),
+  })),
+  PostToConnectionCommand: vi.fn(),
+}));
+
 function makeEvent(body: Record<string, unknown>, connectionId = "conn-abc") {
   return {
     requestContext: { connectionId },
